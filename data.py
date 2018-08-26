@@ -13,7 +13,7 @@ class ohlcv(object):
     def plot_candlestick(self, ax, width=0.2, colorup='green', colordown='red', alpha=1.0):
 
         wickWidth = max(0.5, width / 5)
-
+        open = self.data['Open'][0]
         t0 = date2num(self.data.index[0])
         t1 = date2num(self.data.index[1])
         toffset = (t1 - t0) * 0.15
@@ -22,23 +22,23 @@ class ohlcv(object):
 
         for row in self.data.itertuples():
             t = date2num(row[0])
-            open = row[1]
-            high = row[2]
-            low = row[3]
-            close = row[4]
+            row_open = row[1] / open
+            row_high = row[2] / open
+            row_low = row[3] / open
+            row_close = row[4] / open
 
-            if close >= open:
+            if row_close >= row_open:
                 color = colorup
-                lower = open
-                upper = close
+                lower = row_open
+                upper = row_close
             else:
                 color = colordown
-                lower = close
-                upper = open
+                lower = row_close
+                upper = row_open
 
-            if high > upper:
+            if row_high > upper:
                 vlineWick = Line2D(
-                    xdata=(t+tmid, t+tmid), ydata=(upper, high),
+                    xdata=(t+tmid, t+tmid), ydata=(upper, row_high),
                     color=color,
                     linewidth=wickWidth,
                     antialiased=True,
@@ -46,9 +46,9 @@ class ohlcv(object):
                 vlineWick.set_alpha(alpha)
                 ax.add_line(vlineWick)
 
-            if low < lower:
+            if row_low < lower:
                 vlineWick = Line2D(
-                    xdata=(t+tmid, t+tmid), ydata=(low, lower),
+                    xdata=(t+tmid, t+tmid), ydata=(row_low, lower),
                     color=color,
                     linewidth=wickWidth,
                     antialiased=True,
@@ -65,7 +65,7 @@ class ohlcv(object):
             )
             rect.set_alpha(alpha)
             ax.add_patch(rect)
-
+            ax.set_ylabel('SP (Relative to Open)', fontsize=8)
 
     def plot_volume_bars(self, ax, colorup='green', colordown='red', alpha=0.3, yscale=0.3):
         t0 = date2num(self.data.index[0])
@@ -94,7 +94,8 @@ class ohlcv(object):
             rect.set_alpha(alpha)
             ax.add_patch(rect)
         ax.set_ylim(0, self.data['Volume'].max()/(yscale*1000))
-        ax.yaxis.set_major_formatter(FormatStrFormatter('%d K'))
+        ax.yaxis.set_major_formatter(FormatStrFormatter('%d'))
+        ax.set_ylabel('Volume (K)', fontsize=8)
 
     def fill_gaps(self):
         self.data['Open'].fillna(method="ffill", inplace=True)

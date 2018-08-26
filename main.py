@@ -49,7 +49,7 @@ for i in range(days.size):
         df_open30m = df_morning_mins.daterange(dates_open30m, ohlcvOnly=False)
 
         fig = plt.figure(1)
-#        fig.set_dpi(300)
+        fig.set_dpi(140)
 #        fig.set_size_inches(100, 15)
         line_width = 1.0
         plot_size = (5, 10) # 3 rows 10 columns
@@ -60,8 +60,11 @@ for i in range(days.size):
         df_open30m.plot_candlestick(ax)
 #        candlestick_ohlc(ax, df_open30m, width=10.0, alpha=0.2)
         # Plot the MA
-        df_open30m.data['ma5'].plot(ax=ax, x_compat=True, color='blue')
-        df_open30m.data['ma10'].plot(ax=ax, x_compat=True, color='blue', ls='--')
+        df_open30m.data['ma5'] = df_open30m.data['ma5'] / df_open30m.data['Open'][0]
+        df_open30m.data['ma5'].plot(ax=ax, x_compat=True, color='blue', label='MA(5)')
+        df_open30m.data['ma10'] = df_open30m.data['ma10'] / df_open30m.data['Open'][0]
+        df_open30m.data['ma10'].plot(ax=ax, x_compat=True, color='blue', ls='--', label='MA(10)')
+        ax.legend(loc='upper left', prop={'size': 6})
         ax.xaxis.set_major_formatter(DateFormatter('%H:%M'))
         for label in ax.get_xticklabels():
             label.set_rotation(0)
@@ -74,16 +77,19 @@ for i in range(days.size):
         # Plot the rsi
         ax = plt.subplot2grid((plot_size[0], plot_size[1]), (3, 0), colspan=10, rowspan=1) # plot at row 3 column 1:9
         ax.get_xaxis().set_visible(False)
-        df_open30m.data['rsi'].plot(ax=ax, linewidth=line_width)
+        df_open30m.data['rsi'].plot(ax=ax, linewidth=line_width, label='RSI')
         ax.axhline(80, color='green', ls='--')
         ax.axhline(20, color='red', ls='--')
         ax.set_ylim(0,100)
+        ax.set_ylabel('RSI', fontsize=10)
 
         # Plot the STOCH 14
         ax = plt.subplot2grid((plot_size[0], plot_size[1]), (4, 0), colspan=10, rowspan=1) # plot at row 4 column 1:9
-        df_open30m.data['stoch_k'].plot(color='black', linewidth=line_width)
-        df_open30m.data['stoch_d'].plot(color='red', linewidth=line_width)
+        df_open30m.data['stoch_k'].plot(color='black', linewidth=line_width, label='k')
+        df_open30m.data['stoch_d'].plot(color='red', linewidth=line_width, label='d')
         ax.set_ylim(0,100)
+        ax.set_ylabel('STOCH', fontsize=10)
+        ax.legend(loc='upper left', prop={'size': 6})
 
         fig.tight_layout()
 
