@@ -109,26 +109,31 @@ def find_signals(df, day):
         spIn = 0
         maIn = 0
 
+#        print("pre_close={} pre_vol={}".format(df_pre_close, df_pre_vol))
+
         for row in df_open30m.data.itertuples():
+            wick = (row.High - row.Low) / ((row.Close - row.Open) + 0.0001)
             maDelta = (row.ma5 / open) - (row.ma10 / open)
-            if spIn == 0 and row.rsi > 70 and row.stoch_k > 70 and maDelta > 0.001:
+ #           print("{} maIn={:.2f} rsiIn={:.0f} stochIn={:.0f} wick={:.4f} SP={:.2f}".format(row.Index.strftime('%Y-%m-%d %H:%M'),
+ #                                                                               maDelta, row.rsi, row.stoch_k, wick, row.Close))
+            if spIn == 0 and row.Close > row.Open and row.rsi > 70 and row.stoch_k > 70 and maDelta > 0.001 and abs(wick) < 3:
                 spIn = row.Close
                 stochIn = row.stoch_k
                 rsiIn = row.rsi
                 maIn = row.ma5 - row.ma10
                 timeIn = row.Index
-            if spIn != 0 and (row.rsi < 60 or row.stoch_k < 60 or maDelta < -0.001):
+            elif spIn != 0 and (row.rsi < 60 or row.stoch_k < 60 or maDelta < -0.001 or abs(wick) > 6):
                 delta = (row.Close / spIn) - 1.0
-                gain = gain + delta
-                if delta > 0.01 or 1:
+                if delta > 0.003:
+                    gain = gain + delta
                     print("Trade Day {}".format(day.strftime('%Y-%m-%d')))
                     print("  In  {} maIn={:.2f} rsiIn={:.0f} stochIn={:.0f} SP={:.2f}".format(timeIn.strftime('%H:%M'), maIn, rsiIn, stochIn, spIn))
                     print("  Out {} maDelta={:.2f} rsi={:.0f} stoch={:.0f} SP={:.2f} ({:.2f}%)".format(row.Index.strftime('%H:%M'), row.ma5 - row.ma10, row.rsi, row.stoch_k, row.Close, delta*100))
                 spIn = rsiSig = stochSig = 0
         if spIn != 0:
             delta = (df_open30m.data['Close'][-1] / spIn) - 1.0
-            gain = gain + delta
-            if delta > 0.01 or 1:
+            if delta > 0.003:
+                gain = gain + delta
                 print("Trade Day {}".format(day.strftime('%Y-%m-%d')))
                 print("  In  {} maIn={:.2f} rsiIn={:.0f} stochIn={:.0f} SP={:.2f}".format(timeIn.strftime('%H:%M'), maIn, rsiIn, stochIn, spIn))
                 print("  Out {} maDelta={:.2f} rsi={:.0f} stoch={:.0f} SP={:.2f} ({:.2f}%)".format(row.Index.strftime('%H:%M'), row.ma5 - row.ma10, row.rsi, row.stoch_k, row.Close, delta * 100))
