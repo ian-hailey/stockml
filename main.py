@@ -153,6 +153,11 @@ last_total = 0.0
 total_gains = 0.0
 total_losses = 0.0
 total = 0.0
+
+gains = pd.DataFrame(index=days, columns=['gain', 'yoy'])
+gains['gain'].fillna(value=0.0, inplace=True)
+gains['yoy'].fillna(value=0.0, inplace=True)
+
 for i in range(days.size):
     gain = find_signals(df, days[i])
     if gain > 0.0:
@@ -160,10 +165,16 @@ for i in range(days.size):
     else:
         total_losses = total_losses + gain
     total = total + gain
+    gains['gain'][i] = gain * 100
+    gains['yoy'][i] = total * 100
     if total != last_total:
         print("total={:.2f}%".format(total*100))
         last_total = total
 #    plot_day(df, days[i])
 print("total={:.2f}% (gains={:.2f}% losses={:.2f}%)".format(total*100, total_gains*100, total_losses*100))
 
+ax = gains.plot()
+fig = ax.get_figure()
+fig.set_dpi(140)
+fig.savefig("gains.jpg")
 pass
