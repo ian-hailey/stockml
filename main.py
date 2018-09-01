@@ -111,13 +111,13 @@ def find_signals(df, day):
 
         for row in df_open30m.data.itertuples():
             maDelta = (row.ma5 / open) - (row.ma10 / open)
-            if spIn == 0 and row.rsi > 50 and (row.stoch_k > 50 or (row.stoch_k - row.stoch_d) > 10) and maDelta > 0.0005:
+            if spIn == 0 and row.rsi > 70 and row.stoch_k > 70 and maDelta > 0.001:
                 spIn = row.Close
                 stochIn = row.stoch_k
                 rsiIn = row.rsi
                 maIn = row.ma5 - row.ma10
                 timeIn = row.Index
-            elif spIn != 0 and (row.rsi < (rsiIn - 5) or row.stoch_k < (stochIn - 5) or maDelta < -0.001):
+            if spIn != 0 and (row.rsi < 60 or row.stoch_k < 60 or maDelta < -0.001):
                 delta = (row.Close / spIn) - 1.0
                 gain = gain + delta
                 if delta > 0.01 or 1:
