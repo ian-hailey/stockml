@@ -90,7 +90,7 @@ def find_signals(df, day):
     df_pre_vol = df_pre.data['Volume'].sum()
     if df_pre_vol:
         # create down samples minute resolution and include premarket
-        dates_morning = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=10), freq='S')
+        dates_morning = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=15), freq='S')
         df_morning = df.daterange(dates_morning)
         df_morning_mins = df_morning.resample('60s')
         df_morning_mins.compute_rsi()
@@ -99,10 +99,10 @@ def find_signals(df, day):
         df_morning_mins.compute_ma(time=10)
 
         # create down samples minute resolution first 30 minutes
-        dates_open30m = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=10), freq='60S')
-        df_open30m = df_morning_mins.daterange(dates_open30m, ohlcvOnly=False)
+        dates_open = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=15), freq='60S')
+        df_open = df_morning_mins.daterange(dates_open, ohlcvOnly=False)
 
-        open = df_open30m.data['Open'][0]
+        open = df_open.data['Open'][0]
         timeIn = 0
         stochIn = 0
         rsiIn = 0
@@ -111,18 +111,18 @@ def find_signals(df, day):
 
 #        print("pre_close={} pre_vol={}".format(df_pre_close, df_pre_vol))
 
-        for row in df_open30m.data.itertuples():
+        for row in df_open.data.itertuples():
             wick = (row.High - row.Low) / ((row.Close - row.Open) + 0.0001)
             maDelta = (row.ma5 / open) - (row.ma10 / open)
  #           print("{} maIn={:.2f} rsiIn={:.0f} stochIn={:.0f} wick={:.4f} SP={:.2f}".format(row.Index.strftime('%Y-%m-%d %H:%M'),
  #                                                                               maDelta, row.rsi, row.stoch_k, wick, row.Close))
-            if spIn == 0 and row.Close > row.Open and row.rsi > 70 and row.stoch_k > 70 and maDelta > 0.001 and abs(wick) < 3:
+            if spIn == 0 and row.Close > row.Open and row.rsi > 70 and row.stoch_k > 70 and maDelta > 0.001:
                 spIn = row.Close
                 stochIn = row.stoch_k
                 rsiIn = row.rsi
                 maIn = row.ma5 - row.ma10
                 timeIn = row.Index
-            elif spIn != 0 and (row.rsi < 60 or row.stoch_k < 60 or maDelta < -0.001 or abs(wick) > 6):
+            elif spIn != 0 and (row.rsi < 60 or row.stoch_k < 60 or maDelta < -0.001):
                 delta = (row.Close / spIn) - 1.0
                 if delta > 0.003:
                     gain = gain + delta
@@ -131,13 +131,43 @@ def find_signals(df, day):
                     print("  Out {} maDelta={:.2f} rsi={:.0f} stoch={:.0f} SP={:.2f} ({:.2f}%)".format(row.Index.strftime('%H:%M'), row.ma5 - row.ma10, row.rsi, row.stoch_k, row.Close, delta*100))
                 spIn = rsiSig = stochSig = 0
         if spIn != 0:
-            delta = (df_open30m.data['Close'][-1] / spIn) - 1.0
+            delta = (df_open.data['Close'][-1] / spIn) - 1.0
             if delta > 0.003:
                 gain = gain + delta
                 print("Trade Day {}".format(day.strftime('%Y-%m-%d')))
                 print("  In  {} maIn={:.2f} rsiIn={:.0f} stochIn={:.0f} SP={:.2f}".format(timeIn.strftime('%H:%M'), maIn, rsiIn, stochIn, spIn))
                 print("  Out {} maDelta={:.2f} rsi={:.0f} stoch={:.0f} SP={:.2f} ({:.2f}%)".format(row.Index.strftime('%H:%M'), row.ma5 - row.ma10, row.rsi, row.stoch_k, row.Close, delta * 100))
     return gain
+
+def signals_from_df(df, days):
+    last_total = 0.0
+    total_gains = 0.0
+    total_losses = 0.0
+    total = 0.0
+    gains = pd.DataFrame(index=days, columns=['gain', 'yoy'])
+    gains['gain'].fillna(value=0.0, inplace=True)
+    gains['yoy'].fillna(value=0.0, inplace=True)
+    for i in range(days.size):
+        gain = find_signals(df, days[i])
+        if gain > 0.0:
+            total_gains = total_gains + gain
+        else:
+            total_losses = total_losses + gain
+        total = total + gain
+        gains['gain'][i] = gain * 100
+        gains['yoy'][i] = total * 100
+        if total != last_total:
+            print("total={:.2f}%".format(total * 100))
+            last_total = total
+    print("total={:.2f}% (gains={:.2f}% losses={:.2f}%)".format(total * 100, total_gains * 100, total_losses * 100))
+    ax = gains.plot()
+    fig = ax.get_figure()
+    fig.set_dpi(140)
+    fig.savefig("gains.jpg")
+
+def daily_plots(df, days):
+    for i in range(days.size):
+        plot_day(df, days[i])
 
 df = data.ohlcv_csv("../ib/wdc_ohlcv_1_year.csv")
 df.fill_gaps()
@@ -154,32 +184,9 @@ plt.close()
 
 days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
 days = days.normalize()
-last_total = 0.0
-total_gains = 0.0
-total_losses = 0.0
-total = 0.0
 
-gains = pd.DataFrame(index=days, columns=['gain', 'yoy'])
-gains['gain'].fillna(value=0.0, inplace=True)
-gains['yoy'].fillna(value=0.0, inplace=True)
+#signals_from_df(df, days)
+daily_plots(df, days)
 
-for i in range(days.size):
-    gain = find_signals(df, days[i])
-    if gain > 0.0:
-        total_gains = total_gains + gain
-    else:
-        total_losses = total_losses + gain
-    total = total + gain
-    gains['gain'][i] = gain * 100
-    gains['yoy'][i] = total * 100
-    if total != last_total:
-        print("total={:.2f}%".format(total*100))
-        last_total = total
-#    plot_day(df, days[i])
-print("total={:.2f}% (gains={:.2f}% losses={:.2f}%)".format(total*100, total_gains*100, total_losses*100))
 
-ax = gains.plot()
-fig = ax.get_figure()
-fig.set_dpi(140)
-fig.savefig("gains.jpg")
 pass
