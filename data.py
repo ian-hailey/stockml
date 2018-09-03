@@ -135,9 +135,10 @@ class ohlcv(object):
         range_ohlcv.fill_gaps()
         return range_ohlcv
 
-    def compute_ma(self, time=200):
+    def compute_ma(self, time=200, sample=1, source='Close'):
         column = 'ma' + str(time)
-        self.data[column] = talib.MA(np.asarray(self.data['Close']), timeperiod=time, matype=0)
+        period = sample * time
+        self.data[column] = talib.MA(np.asarray(self.data[source]), timeperiod=period, matype=0)
 
     def compute_macd(self, fast=12, slow=26, signal=9):
         self.data['macd'], self.data['macdsignal'], self.data['macdhist'] = talib.MACD(np.asarray(self.data['Close']), fastperiod=fast, slowperiod=slow, signalperiod=signal)
