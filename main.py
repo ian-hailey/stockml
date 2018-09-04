@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pandas as pd
 from matplotlib.dates import DateFormatter
+from queue import Queue
+from threading import Thread
 
 def plot_day(df, day):
     # create date time index for the pre-market
@@ -161,6 +163,19 @@ def find_signals(df, day):
                 print("  Out {} maDelta={:.2f} rsi={:.0f} stoch={:.0f} SP={:.2f} ({:.2f}%)".format(row.Index.strftime('%H:%M:%S'), row.ma5 - row.ma10, row_m.rsi, row.stoch_k, row.Close, delta * 100))
     return gain
 
+def signals_from_df_day(q, workerId):
+    while True:
+        day = q.get()
+        print("WorkerId={}".format(workerId))
+#        gain = find_signals(df, day)
+        gain = 1.456
+        for j in range(100000000):
+            gain = 213123  # generates some load
+            gain * gain
+            gain = gain + 1
+        print(gain)
+        q.task_done()
+
 def signals_from_df(df, days):
     last_total = 0.0
     total_gains = 0.0
@@ -169,6 +184,17 @@ def signals_from_df(df, days):
     gains = pd.DataFrame(index=days, columns=['gain', 'yoy'])
     gains['gain'].fillna(value=0.0, inplace=True)
     gains['yoy'].fillna(value=0.0, inplace=True)
+
+    q = Queue(maxsize=0)
+    num_threads = 4
+    for i in range(num_threads):
+        worker = Thread(target=signals_from_df_day, args=(q,i))
+        worker.setDaemon(True)
+        worker.start()
+    for x in range(4):
+        q.put(days[x])
+    q.join()
+
     for i in range(days.size):
         gain = find_signals(df, days[i])
         if gain > 0.0:
