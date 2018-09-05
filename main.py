@@ -2,9 +2,9 @@ import data
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pandas as pd
+import time
 from matplotlib.dates import DateFormatter
-from queue import Queue
-from threading import Thread
+from multiprocessing import Pool
 
 def plot_day(df, day):
     # create date time index for the pre-market
@@ -99,16 +99,13 @@ def plot_day(df, day):
         fig.savefig(filename)
         plt.close()
 
-def find_signals(df, day):
+def find_signals(df_day_s, day, resolution='M'):
     gain = 0.0
     dates_pre = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=9.5), freq='S')
-    df_pre = df.daterange(dates_pre)
+    df_pre = df_day_s.daterange(dates_pre)
     df_pre_close = df_pre.data['Close'].iloc[-1]
     df_pre_vol = df_pre.data['Volume'].sum()
     if df_pre_vol:
-        # create down samples minute resolution and include premarket
-        dates_day = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=10), freq='S')
-        df_day_s = df.daterange(dates_day)
         df_day_s.compute_stoch(fastk=14*60, slowd=60)
         df_day_s.compute_ma(time=5, sample=60)
         df_day_s.compute_ma(time=10, sample=60)
@@ -132,8 +129,11 @@ def find_signals(df, day):
         maIn = 0
 
         print("{} pre_close={} pre_vol={}".format(day.strftime('%Y-%m-%d'), df_pre_close, df_pre_vol))
-
-        for row in df_open_s.data.itertuples():
+        if resolution is 'S':
+            df_open = df_open_s
+        else:
+            df_open = df_open_m
+        for row in df_open.data.itertuples():
             minute = row.Index.strftime('%Y-%m-%d %H:%M')
             row_m = df_open_m.data.loc[minute]
             wick = (row.High - row.Low) / ((row.Close - row.Open) + 0.0001)
@@ -155,48 +155,54 @@ def find_signals(df, day):
                     print("  Out {} maDelta={:.2f} rsi={:.0f} stoch={:.0f} SP={:.2f} ({:.2f}%)".format(row.Index.strftime('%H:%M:%S'), row.ma5 - row.ma10, row_m.rsi, row.stoch_k, row.Close, delta*100))
                 spIn = rsiSig = stochSig = 0
         if spIn != 0:
-            delta = (df_open_s.data['Close'][-1] / spIn) - 1.0
+            delta = (df_open.data['Close'][-1] / spIn) - 1.0
             if delta > 0.003:
                 gain = gain + delta
                 print("Trade Day {}".format(day.strftime('%Y-%m-%d')))
                 print("  In  {} maIn={:.2f} rsiIn={:.0f} stochIn={:.0f} SP={:.2f}".format(timeIn.strftime('%H:%M:%S'), maIn, rsiIn, stochIn, spIn))
                 print("  Out {} maDelta={:.2f} rsi={:.0f} stoch={:.0f} SP={:.2f} ({:.2f}%)".format(row.Index.strftime('%H:%M:%S'), row.ma5 - row.ma10, row_m.rsi, row.stoch_k, row.Close, delta * 100))
-    return gain
+    return [gain, day]
 
-def signals_from_df_day(q, workerId):
-    while True:
-        day = q.get()
-        print("WorkerId={}".format(workerId))
-#        gain = find_signals(df, day)
-        gain = 1.456
-        for j in range(100000000):
-            gain = 213123  # generates some load
-            gain * gain
-            gain = gain + 1
-        print(gain)
-        q.task_done()
+signal_results = []
+
+def find_signals_callback(results):
+    signal_results.append(results)
 
 def signals_from_df(df, days):
-    last_total = 0.0
-    total_gains = 0.0
-    total_losses = 0.0
-    total = 0.0
+    start_time = time.time()
+    with Pool(processes=4) as pool:
+        for i in range(days.size):
+            dates_day = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
+            df_day_s = df.daterange(dates_day)
+            pool.apply_async(find_signals, args=(df_day_s, days[i], 'M'), callback=find_signals_callback)
+        pool.close()
+        pool.join()
+
     gains = pd.DataFrame(index=days, columns=['gain', 'yoy'])
     gains['gain'].fillna(value=0.0, inplace=True)
     gains['yoy'].fillna(value=0.0, inplace=True)
+    last_total = total_gains = total_losses = total = 0.0
+    for [gain, day] in signal_results:
+        if gain > 0.0:
+            total_gains = total_gains + gain
+        else:
+            total_losses = total_losses + gain
+        total = total + gain
+        gains['gain'].loc[day] = gain * 100
+        gains['yoy'].loc[day] = total * 100
+        if total != last_total:
+            print("total={:.2f}%".format(total * 100))
+            last_total = total
+    print("total={:.2f}% (gains={:.2f}% losses={:.2f}%)".format(total * 100, total_gains * 100, total_losses * 100))
 
-    q = Queue(maxsize=0)
-    num_threads = 4
-    for i in range(num_threads):
-        worker = Thread(target=signals_from_df_day, args=(q,i))
-        worker.setDaemon(True)
-        worker.start()
-    for x in range(4):
-        q.put(days[x])
-    q.join()
+    print("--- %s seconds ---" % (time.time() - start_time))
 
+    start_time = time.time()
+    last_total = total_gains = total_losses = total = 0.0
     for i in range(days.size):
-        gain = find_signals(df, days[i])
+        dates_day = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
+        df_day_s = df.daterange(dates_day)
+        [gain, day] = find_signals(df_day_s, days[i])
         if gain > 0.0:
             total_gains = total_gains + gain
         else:
@@ -208,6 +214,7 @@ def signals_from_df(df, days):
             print("total={:.2f}%".format(total * 100))
             last_total = total
     print("total={:.2f}% (gains={:.2f}% losses={:.2f}%)".format(total * 100, total_gains * 100, total_losses * 100))
+    print("--- %s seconds ---" % (time.time() - start_time))
     ax = gains.plot()
     fig = ax.get_figure()
     fig.set_dpi(140)
