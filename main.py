@@ -1,4 +1,5 @@
 import data
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pandas as pd
@@ -6,16 +7,13 @@ import time
 from matplotlib.dates import DateFormatter
 from multiprocessing import Pool
 
-def plot_day(df, day):
+def plot_day(df_day_s, day):
     # create date time index for the pre-market
     dates_pre = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=9.5), freq='S')
     df_pre = df.daterange(dates_pre)
     df_pre_close = df_pre.data['Close'].iloc[-1]
     df_pre_vol = df_pre.data['Volume'].sum()
     if df_pre_vol:
-        # create down samples minute resolution and include premarket
-        dates_day_s = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=10), freq='S')
-        df_day_s = df.daterange(dates_day_s)
         df_day_s.compute_rsi()
         df_day_s.compute_stoch(fastk=14*60, slowd=60)
         df_day_s.compute_ma(time=5, sample=60)
@@ -54,7 +52,7 @@ def plot_day(df, day):
         df_open_s.data['Close'] = df_open_s.data['Close'] / df_open_s.data['Open'][0]
         df_open_s.data['Close'].plot(ax=ax, x_compat=True, color='orange', label='SPs')
         df_open_m.data['Close'] = df_open_m.data['Close'] / df_open_m.data['Open'][0]
-        df_open_m.data['Close'].plot(ax=ax, x_compat=True, color='black', label='SPs')
+        df_open_m.data['Close'].plot(ax=ax, x_compat=True, color='black', label='SPm')
 
         # Plot the MA
         df_open_s.data['ma5'] = df_open_s.data['ma5'] / df_open_s.data['Open'][0]
@@ -172,12 +170,11 @@ def signals_from_df(df, days):
     start_time = time.time()
     with Pool(processes=4) as pool:
         for i in range(days.size):
-            dates_day = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
-            df_day_s = df.daterange(dates_day)
+            dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
+            df_day_s = df.daterange(dates_day_s)
             pool.apply_async(find_signals, args=(df_day_s, days[i], 'M'), callback=find_signals_callback)
         pool.close()
         pool.join()
-
     gains = pd.DataFrame(index=days, columns=['gain', 'yoy'])
     gains['gain'].fillna(value=0.0, inplace=True)
     gains['yoy'].fillna(value=0.0, inplace=True)
@@ -194,35 +191,30 @@ def signals_from_df(df, days):
             print("total={:.2f}%".format(total * 100))
             last_total = total
     print("total={:.2f}% (gains={:.2f}% losses={:.2f}%)".format(total * 100, total_gains * 100, total_losses * 100))
-
-    print("--- %s seconds ---" % (time.time() - start_time))
-
-    start_time = time.time()
-    last_total = total_gains = total_losses = total = 0.0
-    for i in range(days.size):
-        dates_day = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
-        df_day_s = df.daterange(dates_day)
-        [gain, day] = find_signals(df_day_s, days[i])
-        if gain > 0.0:
-            total_gains = total_gains + gain
-        else:
-            total_losses = total_losses + gain
-        total = total + gain
-        gains['gain'][i] = gain * 100
-        gains['yoy'][i] = total * 100
-        if total != last_total:
-            print("total={:.2f}%".format(total * 100))
-            last_total = total
-    print("total={:.2f}% (gains={:.2f}% losses={:.2f}%)".format(total * 100, total_gains * 100, total_losses * 100))
     print("--- %s seconds ---" % (time.time() - start_time))
     ax = gains.plot()
     fig = ax.get_figure()
     fig.set_dpi(140)
     fig.savefig("gains.jpg")
 
-def daily_plots(df, days):
-    for i in range(days.size):
-        plot_day(df, days[i])
+def daily_plots(df, days, thread_count=1):
+    start_time = time.time()
+    if thread_count > 1:
+        with Pool(processes=4) as pool:
+            for i in range(days.size):
+                dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
+                df_day_s = df.daterange(dates_day_s)
+                pool.apply_async(plot_day, args=(df_day_s, days[i]))
+            pool.close()
+            pool.join()
+    else:
+        for i in range(days.size):
+            dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
+            df_day_s = df.daterange(dates_day_s)
+            plot_day(df_day_s, days[i])
+    print("--- %s seconds ---" % (time.time() - start_time))
+
+print("Using:",matplotlib.get_backend())
 
 df = data.ohlcv_csv("../ib/wdc_ohlcv_1_year.csv")
 df.fill_gaps()
@@ -240,8 +232,8 @@ plt.close()
 days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
 days = days.normalize()
 
-signals_from_df(df, days)
-#daily_plots(df, days)
+#signals_from_df(df, days)
+daily_plots(df, days)
 
 
 pass
