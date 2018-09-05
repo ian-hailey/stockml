@@ -8,7 +8,7 @@ import time
 from matplotlib.dates import DateFormatter
 from multiprocessing import Pool
 
-def plot_day(df_day_s, day, stop=10):
+def plot_day(df_day_s, day, stop=10, signals=None):
     # create date time index for the pre-market
     dates_pre = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=9.5), freq='S')
     df_pre = df.daterange(dates_pre)
@@ -36,7 +36,7 @@ def plot_day(df_day_s, day, stop=10):
 
         fig = plt.figure(1)
         fig.set_dpi(140)
-        fig.set_size_inches(60, 15)
+#        fig.set_size_inches(60, 15)
         line_width = 1.0
         plot_size = (5, 10)  # 3 rows 10 columns
         gridspec.GridSpec(plot_size[0], plot_size[1])
@@ -98,7 +98,8 @@ def plot_day(df_day_s, day, stop=10):
         fig.savefig(filename)
         plt.close()
 
-def find_signals(df_day_s, day, resolution='M'):
+def find_signals(df_day_s, day, stop=10, resolution='M'):
+    results = []
     gain = 0.0
     dates_pre = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=9.5), freq='S')
     df_pre = df_day_s.daterange(dates_pre)
@@ -115,9 +116,9 @@ def find_signals(df_day_s, day, resolution='M'):
         df_day_m.compute_ma(time=10, source='Open')
 
         # create down samples minute resolution first 30 minutes
-        dates_open_s = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=10), freq='S')
+        dates_open_s = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='S')
         df_open_s = df_day_s.daterange(dates_open_s, ohlcvOnly=False)
-        dates_open_m = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=10), freq='60S')
+        dates_open_m = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='60S')
         df_open_m = df_day_m.daterange(dates_open_m, ohlcvOnly=False)
 
         open = df_open_s.data['Open'][0]
@@ -152,6 +153,7 @@ def find_signals(df_day_s, day, resolution='M'):
                     print("Trade Day {}".format(day.strftime('%Y-%m-%d')))
                     print("  In  {} maIn={:.2f} rsiIn={:.0f} stochIn={:.0f} SP={:.2f}".format(timeIn.strftime('%H:%M:%S'), maIn, rsiIn, stochIn, spIn))
                     print("  Out {} maDelta={:.2f} rsi={:.0f} stoch={:.0f} SP={:.2f} ({:.2f}%)".format(row.Index.strftime('%H:%M:%S'), row.ma5 - row.ma10, row_m.rsi, row.stoch_k, row.Close, delta*100))
+                    results.append([gain, timeIn, row.Index])
                 spIn = rsiSig = stochSig = 0
         if spIn != 0:
             delta = (df_open.data['Close'][-1] / spIn) - 1.0
@@ -160,34 +162,42 @@ def find_signals(df_day_s, day, resolution='M'):
                 print("Trade Day {}".format(day.strftime('%Y-%m-%d')))
                 print("  In  {} maIn={:.2f} rsiIn={:.0f} stochIn={:.0f} SP={:.2f}".format(timeIn.strftime('%H:%M:%S'), maIn, rsiIn, stochIn, spIn))
                 print("  Out {} maDelta={:.2f} rsi={:.0f} stoch={:.0f} SP={:.2f} ({:.2f}%)".format(row.Index.strftime('%H:%M:%S'), row.ma5 - row.ma10, row_m.rsi, row.stoch_k, row.Close, delta * 100))
-    return [gain, day]
+                results.append([gain, timeIn, row.Index])
+    return results
 
 signal_results = []
 
 def find_signals_callback(results):
-    signal_results.append(results)
+    signal_results.extend(results)
 
-def signals_from_df(df, days):
+def signals_from_df(df, days, stop=10, thread_count=1):
     start_time = time.time()
-    with Pool(processes=4) as pool:
-        for i in range(days.size):
-            dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
+    if thread_count > 1:
+        with Pool(processes=thread_count) as pool:
+            for i in range(days.size):
+                dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
+                df_day_s = df.daterange(dates_day_s)
+                pool.apply_async(find_signals, args=(df_day_s, days[i], stop, 'M'), callback=find_signals_callback)
+            pool.close()
+            pool.join()
+    else:
+        for i in range(10):
+            dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
             df_day_s = df.daterange(dates_day_s)
-            pool.apply_async(find_signals, args=(df_day_s, days[i], 'M'), callback=find_signals_callback)
-        pool.close()
-        pool.join()
+            results = find_signals(df_day_s, days[i], stop, 'M')
+            signal_results.extend(results)
     gains = pd.DataFrame(index=days, columns=['gain', 'yoy'])
     gains['gain'].fillna(value=0.0, inplace=True)
     gains['yoy'].fillna(value=0.0, inplace=True)
     last_total = total_gains = total_losses = total = 0.0
-    for [gain, day] in signal_results:
+    for [gain, t_in, t_out] in signal_results:
         if gain > 0.0:
             total_gains = total_gains + gain
         else:
             total_losses = total_losses + gain
         total = total + gain
-        gains['gain'].loc[day] = gain * 100
-        gains['yoy'].loc[day] = total * 100
+        gains['gain'].loc[t_in.strftime('%Y-%m-%d')] += gain * 100
+        gains['yoy'].loc[t_in.strftime('%Y-%m-%d')] += total * 100
         if total != last_total:
             print("total={:.2f}%".format(total * 100))
             last_total = total
@@ -198,21 +208,21 @@ def signals_from_df(df, days):
     fig.set_dpi(140)
     fig.savefig("gains.jpg")
 
-def daily_plots(df, days, stop=16, thread_count=1):
+def daily_plots(df, days, stop=10, signals=None, thread_count=1):
     start_time = time.time()
     if thread_count > 1:
         with Pool(processes=thread_count) as pool:
             for i in range(days.size):
                 dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
                 df_day_s = df.daterange(dates_day_s)
-                pool.apply_async(plot_day, args=(df_day_s, days[i], stop))
+                pool.apply_async(plot_day, args=(df_day_s, days[i], stop, signals))
             pool.close()
             pool.join()
     else:
-        for i in range(days.size):
+        for i in range(10):
             dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
             df_day_s = df.daterange(dates_day_s)
-            plot_day(df_day_s, days[i], stop)
+            plot_day(df_day_s, days[i], stop, signals)
     print("--- %s seconds ---" % (time.time() - start_time))
 
 print("Using:",matplotlib.get_backend())
@@ -233,8 +243,7 @@ plt.close()
 days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
 days = days.normalize()
 
-#signals_from_df(df, days)
-daily_plots(df, days, stop=16, thread_count=6)
-
+signals_from_df(df, days, stop=10, thread_count=1)
+daily_plots(df, days, stop=10, signals=signal_results, thread_count=1)
 
 pass
