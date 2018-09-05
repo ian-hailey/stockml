@@ -8,7 +8,7 @@ import time
 from matplotlib.dates import DateFormatter
 from multiprocessing import Pool
 
-def plot_day(df_day_s, day):
+def plot_day(df_day_s, day, stop=10):
     # create date time index for the pre-market
     dates_pre = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=9.5), freq='S')
     df_pre = df.daterange(dates_pre)
@@ -27,16 +27,16 @@ def plot_day(df_day_s, day):
         df_day_m.compute_ma(time=10, source='Open')
 
         # create date time index for the first 30 minutes of market second resolution
-        dates_open_s = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=10), freq='S')
+        dates_open_s = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='S')
         df_open_s = df_day_s.daterange(dates_open_s, ohlcvOnly=False)
 
         # create down samples minute resolution first 30 minutes
-        dates_open_m = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=10), freq='60S')
+        dates_open_m = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='60S')
         df_open_m = df_day_m.daterange(dates_open_m, ohlcvOnly=False)
 
         fig = plt.figure(1)
         fig.set_dpi(140)
-        #        fig.set_size_inches(100, 15)
+        fig.set_size_inches(60, 15)
         line_width = 1.0
         plot_size = (5, 10)  # 3 rows 10 columns
         gridspec.GridSpec(plot_size[0], plot_size[1])
@@ -198,21 +198,21 @@ def signals_from_df(df, days):
     fig.set_dpi(140)
     fig.savefig("gains.jpg")
 
-def daily_plots(df, days, thread_count=1):
+def daily_plots(df, days, stop=16, thread_count=1):
     start_time = time.time()
     if thread_count > 1:
         with Pool(processes=thread_count) as pool:
             for i in range(days.size):
-                dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
+                dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
                 df_day_s = df.daterange(dates_day_s)
-                pool.apply_async(plot_day, args=(df_day_s, days[i]))
+                pool.apply_async(plot_day, args=(df_day_s, days[i], stop))
             pool.close()
             pool.join()
     else:
         for i in range(days.size):
-            dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
+            dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
             df_day_s = df.daterange(dates_day_s)
-            plot_day(df_day_s, days[i])
+            plot_day(df_day_s, days[i], stop)
     print("--- %s seconds ---" % (time.time() - start_time))
 
 print("Using:",matplotlib.get_backend())
@@ -234,7 +234,7 @@ days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
 days = days.normalize()
 
 #signals_from_df(df, days)
-daily_plots(df, days, thread_count=4)
+daily_plots(df, days, stop=16, thread_count=6)
 
 
 pass
