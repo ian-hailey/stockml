@@ -1,5 +1,6 @@
 import data
 import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pandas as pd
@@ -200,7 +201,7 @@ def signals_from_df(df, days):
 def daily_plots(df, days, thread_count=1):
     start_time = time.time()
     if thread_count > 1:
-        with Pool(processes=4) as pool:
+        with Pool(processes=thread_count) as pool:
             for i in range(days.size):
                 dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=10), freq='S')
                 df_day_s = df.daterange(dates_day_s)
@@ -233,7 +234,7 @@ days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
 days = days.normalize()
 
 #signals_from_df(df, days)
-daily_plots(df, days)
+daily_plots(df, days, thread_count=4)
 
 
 pass
