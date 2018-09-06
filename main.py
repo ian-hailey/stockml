@@ -109,7 +109,7 @@ def plot_day(df_day_s, day, stop=10, signals=None):
             signal_str = "trade_"
         else:
             signal_str = ""
-        filename = "{}wdc_30mins/wdc_30mins_{}.jpg".format(signal_str, day.strftime('%Y-%m-%d'))
+        filename = "wdc_30mins/{}wdc_30mins_{}.jpg".format(signal_str, day.strftime('%Y-%m-%d'))
         fig.savefig(filename)
         plt.close()
 
