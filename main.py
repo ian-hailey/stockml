@@ -156,13 +156,13 @@ def find_signals(df_day_s, day, stop=10, resolution='M'):
             maDelta = (row.ma5 / open) - (row.ma10 / open)
  #           print("{} maIn={:.2f} rsiIn={:.0f} stochIn={:.0f} wick={:.4f} SP={:.2f}".format(row.Index.strftime('%Y-%m-%d %H:%M'),
  #                                                                               maDelta, row.rsi, row.stoch_k, wick, row.Close))
-            if spIn == 0 and row.Close > row.Open and row_m.rsi > 60 and row.stoch_k > 70 and maDelta > 0.001:
+            if spIn == 0 and row.Close > row.Open and row_m.rsi > 50 and row.stoch_k > 70 and maDelta > 0.001:
                 spIn = row.Close
                 stochIn = row.stoch_k
                 rsiIn = row_m.rsi
                 maIn = row.ma5 - row.ma10
                 timeIn = row.Index
-            elif spIn != 0 and (row_m.rsi < 60 or row.stoch_k < 60 or maDelta < -0.001):
+            elif spIn != 0 and (row_m.rsi < (rsiIn - 5) or row.stoch_k < 60 or maDelta < -0.001):
                 delta = (row.Close / spIn) - 1.0
                 if delta > 0.003:
                     gain = gain + delta
@@ -181,13 +181,19 @@ def find_signals(df_day_s, day, stop=10, resolution='M'):
                 results.append([gain, timeIn, row.Index])
     return results
 
-signal_results = pd.DataFrame(columns=['t_out', 'gain'])
+signal_results = pd.DataFrame(columns=['t_out', 'gain', 't_delta', 'gradient'])
+
+def add_singal(gain, t_in, t_out):
+    if gain != 0.0:
+        t_delta = int((t_out - t_in).total_seconds())
+        gradient = gain / t_delta
+        if gradient > 2.7e-6:
+            signal_results.loc[t_in] = [t_out, gain, t_delta, gain / t_delta]
 
 def find_signals_callback(results):
     for result in results:
         [gain, t_in, t_out] = result
-        if gain != 0.0:
-            signal_results.loc[t_in] = [t_out, gain]
+        add_singal(gain, t_in, t_out)
 
 def signals_from_df(df, days, stop=10, thread_count=1):
     start_time = time.time()
@@ -206,8 +212,7 @@ def signals_from_df(df, days, stop=10, thread_count=1):
             results = find_signals(df_day_s, days[i], stop, 'M')
             for result in results:
                 [gain, t_in, t_out] = result
-                if gain != 0.0:
-                    signal_results.loc[t_in] = [t_out, gain]
+                add_singal(gain, t_in, t_out)
     gains = pd.DataFrame(index=days, columns=['gain', 'yoy'])
     gains['gain'].fillna(value=0.0, inplace=True)
     gains['yoy'].fillna(value=0.0, inplace=True)
