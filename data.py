@@ -98,14 +98,11 @@ class ohlcv(object):
         ax.set_ylabel('Volume (K)', fontsize=8)
 
     def fill_gaps(self):
-        self.data['Open'].fillna(method="ffill", inplace=True)
-        self.data['High'].fillna(method="ffill", inplace=True)
-        self.data['Low'].fillna(method="ffill", inplace=True)
         self.data['Close'].fillna(method="ffill", inplace=True)
-        self.data['Open'].fillna(method="bfill", inplace=True)
-        self.data['High'].fillna(method="bfill", inplace=True)
-        self.data['Low'].fillna(method="bfill", inplace=True)
         self.data['Close'].fillna(method="bfill", inplace=True)
+        self.data['Open'].fillna(self.data['Close'], inplace=True)
+        self.data['High'].fillna(self.data['Close'], inplace=True)
+        self.data['Low'].fillna(self.data['Close'], inplace=True)
         self.data['Volume'].fillna(value=0, inplace=True)
 
 
