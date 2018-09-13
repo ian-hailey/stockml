@@ -1,6 +1,7 @@
 import data
+import subprocess
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
@@ -91,7 +92,8 @@ class dataset(object):
     def increment_day_index(self):
         self.day_index = self.day_index + 1
 
-    def plot_day_2d(self, state):
+    def plot_day_2d(self):
+        state = self.get_next_second()
         plt.close()
         fig = plt.figure(1)
         ax = fig.add_subplot(111)
@@ -128,9 +130,8 @@ class dataset(object):
         state = np.concatenate((state, self.data_day_m.data.values[minute_index - 60:minute_index, :]), axis=0)
         # add last 240 days
         state = np.concatenate((state, self.data_d.data.values[self.day_index:self.day_index+240, :]), axis=0)
-        self.plot_day_2d(state)
-        state3d = state.reshape(6,60,5)
         self.sec_index = self.sec_index + 1
+        return state
 
 print("Using:", matplotlib.get_backend())
 
@@ -146,6 +147,32 @@ data = dataset(df)
 print(data.get_date_range())
 error = data.select_day()
 
+fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
+canvas_width, canvas_height = fig.canvas.get_width_height()
+ax = fig.add_subplot(111)
+ax.set_xlim(0, 360)
+
+# Open an ffmpeg process
+outf = 'ffmpeg.mp4'
+cmdstring = ('ffmpeg',
+    '-y', '-r', '30', # overwrite, 30fps
+    '-s', '%dx%d' % (canvas_width, canvas_height), # size of image string
+    '-pix_fmt', 'argb', # format
+    '-f', 'rawvideo',  '-i', '-', # tell ffmpeg to expect raw video from the pipe
+    '-vcodec', 'mpeg4', outf) # output encoding
+p = subprocess.Popen(cmdstring, stdin=subprocess.PIPE)
+
 for m in range(60):
-    data.get_next_second()
+    state = data.get_next_second()
+    ax.set_xlim(0, 360)
+    plot_ohlcv(ax, state)
+    fig.tight_layout()
+    plt.autoscale(tight=True)
+    string = fig.canvas.tostring_argb()
+    p.stdin.write(string)
+#    data.plot_day_2d()
+#    state3d = state.reshape(6, 60, 5)
+
+p.communicate()
+
 pass
