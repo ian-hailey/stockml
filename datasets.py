@@ -1,13 +1,67 @@
 import data
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+import matplotlib.animation as animation
+import numpy as np
 import pandas as pd
-import time
-from matplotlib.dates import DateFormatter
-from multiprocessing import Pool
+from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 
+def plot_ohlcv(ax, ohlcv, width=0.2, colorup='green', colordown='red', alpha=1.0):
+    wickWidth = max(0.5, width / 5)
+    open = ohlcv[0][0]
+    t0 = 0.00
+    t1 = 1.00
+    toffset = (t1 - t0) * 0.15
+    tdelta = (t1 - t0) * 0.70
+    tmid = ((t1 - t0) / 2)
+
+    for index in range(ohlcv.shape[0]):
+        row_open = (ohlcv[index][0] / open) - 1.0
+        row_high = (ohlcv[index][1] / open) - 1.0
+        row_low = (ohlcv[index][2] / open) - 1.0
+        row_close = (ohlcv[index][3] / open) - 1.0
+
+        if row_close >= row_open:
+            color = colorup
+            lower = row_open
+            upper = row_close
+        else:
+            color = colordown
+            lower = row_close
+            upper = row_open
+
+        if row_high > upper:
+            vlineWick = Line2D(
+                xdata=(index + tmid, index + tmid), ydata=(upper, row_high),
+                color=color,
+                linewidth=wickWidth,
+                antialiased=True,
+            )
+            vlineWick.set_alpha(alpha)
+            ax.add_line(vlineWick)
+
+        if row_low < lower:
+            vlineWick = Line2D(
+                xdata=(index + tmid, index + tmid), ydata=(row_low, lower),
+                color=color,
+                linewidth=wickWidth,
+                antialiased=True,
+            )
+            vlineWick.set_alpha(alpha)
+            ax.add_line(vlineWick)
+
+        rect = Rectangle(
+            xy=(index + toffset, lower),
+            width=tdelta,
+            height=upper - lower,
+            facecolor=color,
+            edgecolor=color,
+        )
+#        print("x={} y={} height={}".format(index + toffset, lower, upper - lower))
+        rect.set_alpha(alpha)
+        ax.add_patch(rect)
 
 class dataset(object):
     def __init__(self, df):
@@ -34,6 +88,18 @@ class dataset(object):
     def reset_day_index(self):
         self.day_index = 0
 
+    def increment_day_index(self):
+        self.day_index = self.day_index + 1
+
+    def plot_day_2d(self, state):
+        plt.close()
+        fig = plt.figure(1)
+        ax = fig.add_subplot(111)
+        ax.set_xlim(0, 360)
+        plot_ohlcv(ax, state)
+        fig.tight_layout()
+        plt.autoscale(tight=True)
+
     def select_day(self, day=None, start=4.0, stop=16.0):
         error = False
         if day is None and self.day_index < self.days.size:
@@ -46,24 +112,25 @@ class dataset(object):
             self.data_day_m = self.data_day_s.resample(period='60s')
             dates_day = pd.date_range(self.day - pd.DateOffset(days=240), self.day - pd.DateOffset(days=1), freq='1D')
             self.data_day_d = self.data_d.daterange(dates_day)
-            self.day_index = self.day_index + 1
             self.reset_sec_index()
         else:
             error = True
         return error
 
-    def reset_sec_index(self, time='09:00:00'):
+    def reset_sec_index(self, time='09:30:00'):
         self.sec_index = self.data_day_s.data.index.get_loc(self.day.strftime('%Y-%m-%d') + ' ' + time)
 
     def get_next_second(self):
-        for s in range(60):
-            print("{},{},{},{},{}".format(self.data_day_s.data['Open'].iloc[self.sec_index],
-                                          self.data_day_s.data['High'].iloc[self.sec_index],
-                                          self.data_day_s.data['Low'].iloc[self.sec_index],
-                                          self.data_day_s.data['Close'].iloc[self.sec_index],
-                                          self.data_day_s.data['Volume'].iloc[self.sec_index]))
-            self.sec_index = self.sec_index + 1
-
+        minute_index = int(self.sec_index / 60)
+        # add last 60 seconds
+        state = self.data_day_s.data.values[self.sec_index-60:self.sec_index,:]
+        # add last 60 minutes
+        state = np.concatenate((state, self.data_day_m.data.values[minute_index - 60:minute_index, :]), axis=0)
+        # add last 240 days
+        state = np.concatenate((state, self.data_d.data.values[self.day_index:self.day_index+240, :]), axis=0)
+        self.plot_day_2d(state)
+        state3d = state.reshape(6,60,5)
+        self.sec_index = self.sec_index + 1
 
 print("Using:", matplotlib.get_backend())
 
@@ -78,7 +145,7 @@ print(df.data)
 data = dataset(df)
 print(data.get_date_range())
 error = data.select_day()
+
 for m in range(60):
     data.get_next_second()
-
 pass
