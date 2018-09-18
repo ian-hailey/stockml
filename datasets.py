@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
+import time
 
 def plot_ohlcv(ax, ohlcv, width=0.2, colorup='green', colordown='red', alpha=1.0):
     wickWidth = max(0.5, width / 5)
@@ -107,7 +108,8 @@ class dataset(object):
         if day is None and self.day_index < self.days.size:
             self.day = self.days[self.day_index]
         else:
-            self.day = day
+            self.day_index = self.days.get_loc(day)
+            self.day = self.days[self.day_index]
         if self.day is not None:
             dates_day_s = pd.date_range(self.day + pd.DateOffset(hours=start), self.day + pd.DateOffset(hours=stop), freq='S')
             self.data_day_s = self.data.daterange(dates_day_s)
@@ -124,14 +126,33 @@ class dataset(object):
 
     def get_next_second(self):
         minute_index = int(self.sec_index / 60)
-        # add last 60 seconds
-        state = self.data_day_s.data.values[self.sec_index-60:self.sec_index,:]
+        # add last 240 days
+        state = self.data_d.data.values[self.day_index:self.day_index+240, :]
         # add last 60 minutes
         state = np.concatenate((state, self.data_day_m.data.values[minute_index - 60:minute_index, :]), axis=0)
-        # add last 240 days
-        state = np.concatenate((state, self.data_d.data.values[self.day_index:self.day_index+240, :]), axis=0)
+        # add last 60 seconds
+        state = np.concatenate((state, self.data_day_s.data.values[self.sec_index-60:self.sec_index,:]), axis=0)
         self.sec_index = self.sec_index + 1
         return state
+
+def save_plots(data):
+    fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
+    canvas_width, canvas_height = fig.canvas.get_width_height()
+    ax = fig.add_subplot(111)
+    ax.set_xlim(0, 360)
+
+    for m in range(3600):
+        state = data.get_next_second()
+        ax.set_xlim(0, 360)
+        plt.plot(state[:,1]/state[120][3])
+        plt.plot(state[:,2]/state[120][3])
+        plt.plot(state[:,3]/state[120][3])
+#        plot_ohlcv(ax, state)
+        fig.tight_layout()
+        plt.autoscale(tight=True)
+        filename = "data/wdc_{}_{}.jpg".format(data.day.strftime('%Y-%m-%d'), m)
+        fig.savefig(filename)
+        plt.cla()
 
 print("Using:", matplotlib.get_backend())
 
@@ -145,34 +166,20 @@ print(df.data)
 
 data = dataset(df)
 print(data.get_date_range())
-error = data.select_day()
+error = data.select_day('2018-04-25')
 
-fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
-canvas_width, canvas_height = fig.canvas.get_width_height()
-ax = fig.add_subplot(111)
-ax.set_xlim(0, 360)
+start_time = time.time()
+save_plots(data)
+print("--- %s seconds ---" % (time.time() - start_time))
 
-# Open an ffmpeg process
-outf = 'ffmpeg.mp4'
-cmdstring = ('ffmpeg',
-    '-y', '-r', '30', # overwrite, 30fps
-    '-s', '%dx%d' % (canvas_width, canvas_height), # size of image string
-    '-pix_fmt', 'argb', # format
-    '-f', 'rawvideo',  '-i', '-', # tell ffmpeg to expect raw video from the pipe
-    '-vcodec', 'mpeg4', outf) # output encoding
-p = subprocess.Popen(cmdstring, stdin=subprocess.PIPE)
+#start_time = time.time()
+#for m in range(23400):
+#    state = data.get_next_second()
+#    state3d = state.reshape(6, 60, 5)
+#    print(state3d.shape)
+#print("--- %s seconds ---" % (time.time() - start_time))
 
-for m in range(60):
-    state = data.get_next_second()
-    ax.set_xlim(0, 360)
-    plot_ohlcv(ax, state)
-    fig.tight_layout()
-    plt.autoscale(tight=True)
-    string = fig.canvas.tostring_argb()
-    p.stdin.write(string)
 #    data.plot_day_2d()
 #    state3d = state.reshape(6, 60, 5)
-
-p.communicate()
 
 pass

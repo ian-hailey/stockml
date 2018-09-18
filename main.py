@@ -1,10 +1,11 @@
 import data
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pandas as pd
 import time
+import numpy as np
 from matplotlib.dates import DateFormatter
 from multiprocessing import Pool
 
@@ -114,6 +115,33 @@ def plot_day(df_day_s, day, stop=10, signals=None, plotMA5s=False):
         fig.savefig(filename)
         plt.close()
 
+def generate_buysell_signal(df_day_s, day, stop=10, resolution='M'):
+    dates_pre = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=9.5), freq='S')
+    df_pre = df_day_s.daterange(dates_pre)
+    df_pre_close = df_pre.data['Close'].iloc[-1]
+    df_pre_vol = df_pre.data['Volume'].sum()
+    if df_pre_vol:
+        dates_open_s = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='S')
+        df_open_s = df_day_s.daterange(dates_open_s, ohlcvOnly=False)
+        df_day_m = df_day_s.resample('60s')
+        dates_open_m = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='60S')
+        df_open_m = df_day_m.daterange(dates_open_m, ohlcvOnly=False)
+        if resolution is 'S':
+            df_open = df_open_s
+        else:
+            df_open = df_open_m
+        df_open.compute_ma(time=3, source='Close')
+        close_df = np.gradient(df_open.data['ma3'].values)
+        fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
+        ax = fig.add_subplot(111)
+        ax.plot(close_df)
+        ax2 = ax.twinx()
+        ax2.plot(df_open.data['ma3'].values, color='red')
+        buysell = pd.DataFrame(index=df_open.data.index, columns=['buy', 'sell'])
+        for row in df_open.data.itertuples():
+            buysell['buy'].loc[row.Index] = row.Close
+
+
 def find_signals(df_day_s, day, stop=10, resolution='M'):
     results = []
     gain = 0.0
@@ -209,6 +237,7 @@ def signals_from_df(df, days, stop=10, thread_count=1):
         for i in range(days.size):
             dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
             df_day_s = df.daterange(dates_day_s)
+            generate_buysell_signal(df_day_s, days[i], stop, 'M')
             results = find_signals(df_day_s, days[i], stop, 'M')
             for result in results:
                 [gain, t_in, t_out] = result
@@ -278,7 +307,7 @@ plt.close()
 days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
 days = days.normalize()
 
-threads = 6
+threads = 1
 signals_from_df(df, days, stop=16, thread_count=threads)
 daily_plots(df, days, stop=16, signals=signal_results, thread_count=threads)
 signal_results.to_csv("wdc_ohlcv_1_year_signals.csv")
