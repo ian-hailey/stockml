@@ -8,6 +8,7 @@ import time
 import numpy as np
 from matplotlib.dates import DateFormatter
 from multiprocessing import Pool
+from scipy.signal import argrelextrema
 
 def plot_signal_lines(ax, signals, line_width):
     if signals is not None:
@@ -121,25 +122,47 @@ def generate_buysell_signal(df_day_s, day, stop=10, resolution='M'):
     df_pre_close = df_pre.data['Close'].iloc[-1]
     df_pre_vol = df_pre.data['Volume'].sum()
     if df_pre_vol:
+        df_day_s.compute_ma(time=5, sample=60)
+        df_day_s.compute_ma(time=10, sample=60)
+        df_day_m = df_day_s.resample('60s')
+        df_day_m.compute_ma(time=5, source='Close')
+        df_day_m.compute_ma(time=10, source='Close')
+
+        # create down samples minute resolution first 30 minutes
         dates_open_s = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='S')
         df_open_s = df_day_s.daterange(dates_open_s, ohlcvOnly=False)
-        df_day_m = df_day_s.resample('60s')
         dates_open_m = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='60S')
         df_open_m = df_day_m.daterange(dates_open_m, ohlcvOnly=False)
         if resolution is 'S':
             df_open = df_open_s
         else:
             df_open = df_open_m
-        df_open.compute_ma(time=3, source='Close')
-        close_df = np.gradient(df_open.data['ma3'].values)
+        df_open.compute_gradient(source='ma5')
+        print("{} pre_close={} pre_vol={}".format(day.strftime('%Y-%m-%d'), df_pre_close, df_pre_vol))
+        open = df_open_s.data['Open'][0]
+        buysell = pd.DataFrame(index=df_open.data.index, columns=['buy', 'sell'])
+#        buysell['buy'].fillna(0.0, inplace=True)
+#        buysell['sell'].fillna(0.0, inplace=True)
+#        maxima = argrelextrema(df_open.data['ma5grad'].values, np.greater)
+#        minima = argrelextrema(df_open.data['ma5grad'].values, np.less)
+        zero_crossings = np.where(np.diff(np.sign(df_open.data['ma5grad'].values)))[0]
+
+        for rowIndex in range(df_open.data.index.size):
+            row = df_open.data.iloc[rowIndex]
+            minute = row.name.strftime('%Y-%m-%d %H:%M')
+            maDelta = (row.ma5 / open) - (row.ma10 / open)
+            if maDelta > 0:
+                nearest_zc = min(zero_crossings, key=lambda x:abs(x-rowIndex))
+                if nearest_zc > rowIndex:
+                    buysell['sell'].iloc[rowIndex-5] = rowIndex - 5 - nearest_zc
+
         fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
         ax = fig.add_subplot(111)
-        ax.plot(close_df)
+        ax.plot(df_open.data['Close'].values)
+        ax.plot(df_open.data['ma5'].values, ls='--')
         ax2 = ax.twinx()
-        ax2.plot(df_open.data['ma3'].values, color='red')
-        buysell = pd.DataFrame(index=df_open.data.index, columns=['buy', 'sell'])
-        for row in df_open.data.itertuples():
-            buysell['buy'].loc[row.Index] = row.Close
+        ax2.plot(buysell['sell'].values, color='green')
+        pass
 
 
 def find_signals(df_day_s, day, stop=10, resolution='M'):

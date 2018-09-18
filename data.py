@@ -132,6 +132,10 @@ class ohlcv(object):
         range_ohlcv.fill_gaps()
         return range_ohlcv
 
+    def compute_gradient(self, source):
+        column = str(source) + 'grad'
+        self.data[column] = np.gradient(np.asarray(self.data[source]))
+
     def compute_ma(self, time=200, sample=1, source='Close'):
         column = 'ma' + str(time)
         period = sample * time
