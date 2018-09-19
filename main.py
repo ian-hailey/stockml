@@ -143,25 +143,38 @@ def generate_buysell_signal(df_day_s, day, stop=10, resolution='M'):
         buysell = pd.DataFrame(index=df_open.data.index, columns=['buy', 'sell'])
 #        buysell['buy'].fillna(0.0, inplace=True)
 #        buysell['sell'].fillna(0.0, inplace=True)
-#        maxima = argrelextrema(df_open.data['ma5grad'].values, np.greater)
-#        minima = argrelextrema(df_open.data['ma5grad'].values, np.less)
         zero_crossings = np.where(np.diff(np.sign(df_open.data['ma5grad'].values)))[0]
 
+        ma_delay = 3
+        t_sell = -1
+        t_buy = -1
         for rowIndex in range(df_open.data.index.size):
             row = df_open.data.iloc[rowIndex]
-            minute = row.name.strftime('%Y-%m-%d %H:%M')
             maDelta = (row.ma5 / open) - (row.ma10 / open)
-            if maDelta > 0:
+            maDelta = row.ma5grad
+            print("row={} maDelta={} t_sell={} t_buy={}".format(rowIndex, maDelta, t_sell, t_buy))
+            if t_sell == -1 and maDelta > 0:
                 nearest_zc = min(zero_crossings, key=lambda x:abs(x-rowIndex))
                 if nearest_zc > rowIndex:
-                    buysell['sell'].iloc[rowIndex-5] = rowIndex - 5 - nearest_zc
-
+                    t_sell = nearest_zc - rowIndex + ma_delay
+            if t_sell >= 0:
+                buysell['sell'].iloc[rowIndex - ma_delay] = t_sell
+                t_sell = t_sell - 1
+            if t_buy == -1 and maDelta < 0:
+                nearest_zc = min(zero_crossings, key=lambda x:abs(x-rowIndex))
+                if nearest_zc > rowIndex:
+                    t_buy = nearest_zc - rowIndex + ma_delay
+            if t_buy >= 0:
+                buysell['buy'].iloc[rowIndex - ma_delay] = t_buy
+                t_buy = t_buy - 1
         fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
         ax = fig.add_subplot(111)
         ax.plot(df_open.data['Close'].values)
         ax.plot(df_open.data['ma5'].values, ls='--')
         ax2 = ax.twinx()
-        ax2.plot(buysell['sell'].values, color='green')
+#        ax2.plot(buysell['sell'].values, color='green')
+#        ax2.plot(buysell['buy'].values, color='purple')
+        ax2.plot(df_open.data['ma5grad'].values, color='green')
         pass
 
 
