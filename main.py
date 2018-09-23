@@ -129,52 +129,37 @@ def generate_buysell_signal(df_day_s, day, stop=10, resolution='M'):
         df_day_m.compute_ma(time=10, source='Close')
 
         # create down samples minute resolution first 30 minutes
-        dates_open_s = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='S')
+        dates_open_s = pd.date_range(day + pd.DateOffset(hours=4.0), day + pd.DateOffset(hours=stop), freq='S')
         df_open_s = df_day_s.daterange(dates_open_s, ohlcvOnly=False)
-        dates_open_m = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='60S')
+        dates_open_m = pd.date_range(day + pd.DateOffset(hours=4.0), day + pd.DateOffset(hours=stop), freq='60S')
         df_open_m = df_day_m.daterange(dates_open_m, ohlcvOnly=False)
         if resolution is 'S':
             df_open = df_open_s
         else:
             df_open = df_open_m
+        open = df_open_s.data['Open']['2017-06-14 09:30:00']
+        df_open.data['Close'] = df_open.data['Close'] / open
+        df_open.data['ma5'] = df_open.data['ma5'] / open
         df_open.compute_gradient(source='ma5')
         print("{} pre_close={} pre_vol={}".format(day.strftime('%Y-%m-%d'), df_pre_close, df_pre_vol))
-        open = df_open_s.data['Open'][0]
-        buysell = pd.DataFrame(index=df_open.data.index, columns=['buy', 'sell'])
-#        buysell['buy'].fillna(0.0, inplace=True)
-#        buysell['sell'].fillna(0.0, inplace=True)
+        buysell = pd.DataFrame(index=df_open.data.index, columns=['buysell'])
         zero_crossings = np.where(np.diff(np.sign(df_open.data['ma5grad'].values)))[0]
-
-        ma_delay = 3
-        t_sell = -1
-        t_buy = -1
         for rowIndex in range(df_open.data.index.size):
             row = df_open.data.iloc[rowIndex]
-            maDelta = (row.ma5 / open) - (row.ma10 / open)
-            maDelta = row.ma5grad
-            print("row={} maDelta={} t_sell={} t_buy={}".format(rowIndex, maDelta, t_sell, t_buy))
-            if t_sell == -1 and maDelta > 0:
-                nearest_zc = min(zero_crossings, key=lambda x:abs(x-rowIndex))
-                if nearest_zc > rowIndex:
-                    t_sell = nearest_zc - rowIndex + ma_delay
-            if t_sell >= 0:
-                buysell['sell'].iloc[rowIndex - ma_delay] = t_sell
-                t_sell = t_sell - 1
-            if t_buy == -1 and maDelta < 0:
-                nearest_zc = min(zero_crossings, key=lambda x:abs(x-rowIndex))
-                if nearest_zc > rowIndex:
-                    t_buy = nearest_zc - rowIndex + ma_delay
-            if t_buy >= 0:
-                buysell['buy'].iloc[rowIndex - ma_delay] = t_buy
-                t_buy = t_buy - 1
+#            print("row={} maDelta={}".format(rowIndex, row.ma5grad))
+            nearest_zc = min(zero_crossings, key=lambda x:x<rowIndex)
+            if nearest_zc >= rowIndex:
+                buysell['buysell'].iloc[rowIndex] = df_open.data.iloc[nearest_zc].ma5 - row.ma5
+            else:
+                buysell['buysell'].iloc[rowIndex] = 0
         fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
         ax = fig.add_subplot(111)
         ax.plot(df_open.data['Close'].values)
         ax.plot(df_open.data['ma5'].values, ls='--')
         ax2 = ax.twinx()
-#        ax2.plot(buysell['sell'].values, color='green')
-#        ax2.plot(buysell['buy'].values, color='purple')
-        ax2.plot(df_open.data['ma5grad'].values, color='green')
+        ax2.plot(buysell['buysell'].values, color='green')
+        plt.axhline(y=0.0, ls='--', color='grey')
+        plt.axvline(x=330, ls='--', color='grey')
         pass
 
 
