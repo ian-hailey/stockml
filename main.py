@@ -7,7 +7,7 @@ import pandas as pd
 import time
 import numpy as np
 from matplotlib.dates import DateFormatter
-from multiprocessing import Pool
+from multiprocessing import Pool, Lock
 from scipy.signal import argrelextrema
 
 def plot_signal_lines(ax, signals, line_width):
@@ -137,7 +137,7 @@ def generate_buysell_signal(df_day_s, day, stop=10, resolution='M'):
             df_open = df_open_s
         else:
             df_open = df_open_m
-        open = df_open_s.data['Open']['2017-06-14 09:30:00']
+        open = df_open_s.data['Open'][day.strftime('%Y-%m-%d') + ' 09:30:00']
         df_open.data['Close'] = df_open.data['Close'] / open
         df_open.data['ma5'] = df_open.data['ma5'] / open
         df_open.compute_gradient(source='ma5')
@@ -152,16 +152,49 @@ def generate_buysell_signal(df_day_s, day, stop=10, resolution='M'):
                 buysell['buysell'].iloc[rowIndex] = df_open.data.iloc[nearest_zc].ma5 - row.ma5
             else:
                 buysell['buysell'].iloc[rowIndex] = 0
-        fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
-        ax = fig.add_subplot(111)
-        ax.plot(df_open.data['Close'].values)
-        ax.plot(df_open.data['ma5'].values, ls='--')
-        ax2 = ax.twinx()
-        ax2.plot(buysell['buysell'].values, color='green')
-        plt.axhline(y=0.0, ls='--', color='grey')
-        plt.axvline(x=330, ls='--', color='grey')
-        pass
+#        plot_buysell_signal(df_open.data['Close'].values, df_open.data['ma5'].values, buysell['buysell'].values)
+        return buysell
+    return None
 
+def plot_buysell_signal(close, ma5, buysell):
+    fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
+    ax = fig.add_subplot(111)
+    ax.plot(close)
+    ax.plot(ma5, ls='--')
+    ax2 = ax.twinx()
+    ax2.plot(buysell, color='green')
+    plt.axhline(y=0.0, ls='--', color='grey')
+    plt.axvline(x=330, ls='--', color='grey')
+
+buysell = pd.DataFrame(columns=['buysell'])
+#buysell_lock = Lock()
+
+def buysell_signal_callback(results):
+    global buysell
+#    buysell_lock.acquire()
+    buysell = pd.concat([buysell, results])
+#    buysell_lock.release()
+
+def buysell_from_df(df, days, stop=10, thread_count=1):
+    global buysell
+    start_time = time.time()
+    if thread_count > 1:
+        with Pool(processes=thread_count) as pool:
+            for i in range(days.size):
+                dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
+                df_day_s = df.daterange(dates_day_s)
+                pool.apply_async(generate_buysell_signal, args=(df_day_s, days[i], stop, 'M'), callback=buysell_signal_callback)
+            pool.close()
+            pool.join()
+    else:
+        for i in range(days.size):
+            dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
+            df_day_s = df.daterange(dates_day_s)
+            results = generate_buysell_signal(df_day_s, days[i], stop, 'M')
+            if buysell is None:
+                buysell = results
+            else:
+                buysell = pd.concat([buysell, results])
 
 def find_signals(df_day_s, day, stop=10, resolution='M'):
     results = []
@@ -258,7 +291,6 @@ def signals_from_df(df, days, stop=10, thread_count=1):
         for i in range(days.size):
             dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
             df_day_s = df.daterange(dates_day_s)
-            generate_buysell_signal(df_day_s, days[i], stop, 'M')
             results = find_signals(df_day_s, days[i], stop, 'M')
             for result in results:
                 [gain, t_in, t_out] = result
@@ -328,8 +360,10 @@ plt.close()
 days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
 days = days.normalize()
 
-threads = 1
-signals_from_df(df, days, stop=16, thread_count=threads)
-daily_plots(df, days, stop=16, signals=signal_results, thread_count=threads)
-signal_results.to_csv("wdc_ohlcv_1_year_signals.csv")
+threads = 6
+buysell_from_df(df, days, stop=16, thread_count=threads)
+buysell.to_csv("wdc_ohlcv_1_year_buysell.csv")
+#signals_from_df(df, days, stop=16, thread_count=threads)
+#daily_plots(df, days, stop=16, signals=signal_results, thread_count=threads)
+#signal_results.to_csv("wdc_ohlcv_1_year_signals.csv")
 pass
