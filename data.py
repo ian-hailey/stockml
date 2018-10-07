@@ -122,14 +122,15 @@ class ohlcv(object):
         resample_ohlcv.fill_gaps()
         return resample_ohlcv
 
-    def daterange(self, dates, ohlcvOnly=True):
+    def daterange(self, dates, ohlcvOnly=True, fillGaps=True):
         range = pd.DataFrame(index=dates)
         if ohlcvOnly:
             range = range.join(self.data.ix[:,0:5])
         else:
             range = range.join(self.data)
         range_ohlcv = ohlcv(range)
-        range_ohlcv.fill_gaps()
+        if fillGaps:
+            range_ohlcv.fill_gaps()
         return range_ohlcv
 
     def compute_gradient(self, source):

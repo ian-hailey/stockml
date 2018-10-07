@@ -1,6 +1,6 @@
 import data
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pandas as pd
@@ -164,6 +164,8 @@ def generate_buysell_signal(df_day_s, day, stop=10, resolution='M'):
 
 def plot_buysell_signal(day, close, ma5, buysell, openIndex):
     fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
+    fig.set_dpi(140)
+    fig.set_size_inches(60, 15)
     ax = fig.add_subplot(111)
     ax.plot(close)
     ax.plot(ma5, ls='--')
@@ -196,7 +198,7 @@ def buysell_from_df(df, days, stop=10, thread_count=1):
         for i in range(days.size):
             dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
             df_day_s = df.daterange(dates_day_s)
-            results = generate_buysell_signal(df_day_s, days[i], stop, 'M')
+            results = generate_buysell_signal(df_day_s, days[i], stop, 'S')
             if buysell is None:
                 buysell = results
             else:
@@ -366,7 +368,7 @@ plt.close()
 days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
 days = days.normalize()
 
-threads = 1
+threads = 6
 buysell_from_df(df, days, stop=16, thread_count=threads)
 buysell.to_csv("wdc_ohlcv_1_year_buysell.csv")
 #signals_from_df(df, days, stop=16, thread_count=threads)
