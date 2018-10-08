@@ -1,5 +1,5 @@
 import data
-#import resnet
+import resnet
 import time
 import pandas as pd
 import numpy as np
@@ -7,7 +7,6 @@ from datasets import dataset
 
 # load OHLCV
 df = data.ohlcv_csv("../ib/wdc_ohlcv_1_year.csv")
-df.fill_gaps()
 
 # load buysell data
 buysell = pd.read_csv("wdc_ohlcv_1_year_buysell.csv", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
@@ -44,7 +43,6 @@ for day in range(data.get_day_size()):
             x_train[row_index] = x_state3d
             y_train[row_index] = y_state
             row_index += 1
-            break
     print("dayIndex={} row_index={} y_train={}".format(day, row_index, y_train.size))
 #print("x_state3d={} y_state={}".format(x_state3d.shape, y_state))
 print("--- %s seconds ---" % (time.time() - start_time))
