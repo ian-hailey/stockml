@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import time
 
 class dataset_day(object):
     def __init__(self, data, day, start, stop):
@@ -69,10 +70,7 @@ class dataset(object):
     def get_feature_size(self):
         return 5 + 3 # OHLCV + tm + td + ts
 
-    def get_second(self, datetime):
-        day = datetime.strftime('%Y-%m-%d')
-        day_index = self.days.get_loc(day)
-        sec_index = self.day_data[day_index].data_s.data.index.get_loc(datetime)
+    def get_second(self, day_index, sec_index):
         x_state = None
         y_state = self.day_data[day_index].data_s.data.values[sec_index][5]
         if np.isnan(y_state) == False:
@@ -86,16 +84,15 @@ class dataset(object):
             open = self.day_data[day_index].data_s.data.values[sec_index][0]
             x_state[:,:4] = x_state[:,:4] / open
             # add time stamp planes
-            tmonth = np.full((x_state.shape[0], 1), int(datetime.strftime('%m')))
-            tday = np.full((x_state.shape[0], 1), int(datetime.strftime('%d')))
-            tsec = np.full((x_state.shape[0], 1), int(datetime.strftime('%s')))
+            tmonth = np.full((x_state.shape[0], 1), int(self.day_data[day_index].day.strftime('%m')))
+            tday = np.full((x_state.shape[0], 1), int(self.day_data[day_index].day.strftime('%d')))
+            tsec = np.full((x_state.shape[0], 1), int(self.day_data[day_index].day.strftime('%s')))
             x_state = np.append(x_state, tmonth, 1)
             x_state = np.append(x_state, tday, 1)
             x_state = np.append(x_state, tsec, 1)
         return x_state, y_state
 
     def get_next_second(self):
-        datetime = self.day_data[self.day_index].data_s.data.index[self.sec_index]
-        x_state, y_state = self.get_second(datetime)
+        x_state, y_state = self.get_second(self.day_index, self.sec_index)
         self.sec_index = self.sec_index + 1
         return x_state, y_state

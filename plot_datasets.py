@@ -3,10 +3,12 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
+import time
+import numpy as np
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from datasets import dataset
-import time
+from sklearn.model_selection import train_test_split
 
 def plot_ohlcv(ax, ohlcv, width=0.2, colorup='green', colordown='red', alpha=1.0):
     wickWidth = max(0.5, width / 5)
@@ -97,7 +99,9 @@ print("Using:", matplotlib.get_backend())
 
 # load OHLCV
 df = data.ohlcv_csv("../ib/wdc_ohlcv_1_year.csv")
-df.fill_gaps()
+
+# resample data to include all seconds
+df = df.resample(period='1s')
 
 # load buysell data
 buysell = pd.read_csv("wdc_ohlcv_1_year_buysell.csv", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
@@ -114,16 +118,27 @@ data = dataset(df)
 print(data.get_date_range())
 error = data.select_day(dayDate='2018-04-25')
 
-start_time = time.time()
-save_plots(data)
-print("--- %s seconds ---" % (time.time() - start_time))
+# filter out all the pre-post market
+day_range = data.get_date_range()
+buysell_day = buysell.between_time(start_time='09:30', end_time='16:00')
+buysell_day = buysell_day[str(day_range[0].date()):str(day_range[1].date())]
+buysell_day_train, buysell_day_validate = train_test_split(buysell_day, stratify=None, test_size=0.20)
+for item in buysell_day_train:
+    buysell_day_train
+
+#start_time = time.time()
+#save_plots(data)
+#print("--- %s seconds ---" % (time.time() - start_time))
 
 start_time = time.time()
 for m in range(23400):
     x_state, y_state = data.get_next_second()
     if x_state is not None:
         x_state3d = x_state.reshape(9, 60, 8)
-        print("x_state3d={} y_state={}".format(x_state3d.shape, y_state))
+#        print("x_state3d={} y_state={}".format(x_state3d.shape, y_state))
+    else:
+        print("x_state is None")
+
 print("--- %s seconds ---" % (time.time() - start_time))
 
 #    data.plot_day_2d()
