@@ -226,7 +226,7 @@ class ResnetBuilder(object):
                                  strides=(1, 1))(block)
         flatten1 = Flatten()(pool2)
         dense = Dense(units=num_outputs, kernel_initializer="he_normal",
-                      activation="softmax")(flatten1)
+                      activation="linear")(flatten1)
 
         model = Model(inputs=input, outputs=dense)
         return model

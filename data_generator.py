@@ -40,7 +40,7 @@ class data_generator(keras.utils.Sequence):
 
         # Generate data
         for index, date in enumerate(batch_index):
-            x_state, y_state = self.data.get_second(date)
+            x_state, y_state = self.data.get_second(date[0], date[1])
 
             # Store sample
             X[index,] = x_state.reshape(self.dim)

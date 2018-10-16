@@ -106,7 +106,7 @@ class ohlcv(object):
         self.data['Volume'].fillna(value=0, inplace=True)
 
 
-    def resample(self, period='1d'):
+    def resample(self, period='1d', fillGaps=True):
         resample_open = self.data['Open'].resample(period).first()
         resample_high = self.data['High'].resample(period).max()
         resample_low = self.data['Low'].resample(period).min()
@@ -119,7 +119,8 @@ class ohlcv(object):
         resample['Close'] = resample_close.values
         resample['Volume'] = resample_volume.values
         resample_ohlcv = ohlcv(resample)
-        resample_ohlcv.fill_gaps()
+        if fillGaps:
+            resample_ohlcv.fill_gaps()
         return resample_ohlcv
 
     def daterange(self, dates, ohlcvOnly=True, fillGaps=True):

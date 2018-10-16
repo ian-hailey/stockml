@@ -1,6 +1,6 @@
 import data
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 import time
@@ -9,6 +9,10 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from datasets import dataset
 from sklearn.model_selection import train_test_split
+import cProfile as profile
+
+pr = profile.Profile()
+pr.disable()
 
 def plot_ohlcv(ax, ohlcv, width=0.2, colorup='green', colordown='red', alpha=1.0):
     wickWidth = max(0.5, width / 5)
@@ -79,7 +83,7 @@ def save_plots(data):
     fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
     canvas_width, canvas_height = fig.canvas.get_width_height()
     ax = fig.add_subplot(111)
-    ax.set_xlim(0, 360)
+    ax.set_xlim(0, 540)
 
     for m in range(3600):
         x_state, y_state = data.get_next_second()
@@ -88,10 +92,12 @@ def save_plots(data):
         plt.plot(x_state[:,2])
         plt.plot(x_state[:,3])
 #        plot_ohlcv(ax, state)
+        plt.axvline(x=240, ls='--', color='grey')
+        plt.axvline(x=480, ls='--', color='grey')
         plt.figtext(0.1, 0, "Y={}".format(y_state))
         fig.tight_layout()
         plt.autoscale(tight=True)
-        filename = "data/wdc_{}_{}.jpg".format(data.day.strftime('%Y-%m-%d'), m)
+        filename = "data/wdc_n_{}_{}.jpg".format(data.day.strftime('%Y-%m-%d'), m)
         fig.savefig(filename)
         plt.cla()
 
@@ -119,17 +125,28 @@ print(data.get_date_range())
 error = data.select_day(dayDate='2018-04-25')
 
 # filter out all the pre-post market
+pre_time = 4.0
+start_time = 9.5
+end_time = 16.0
 day_range = data.get_date_range()
-buysell_day = buysell.between_time(start_time='09:30', end_time='16:00')
-buysell_day = buysell_day[str(day_range[0].date()):str(day_range[1].date())]
-buysell_day_train, buysell_day_validate = train_test_split(buysell_day, stratify=None, test_size=0.20)
-for item in buysell_day_train:
-    buysell_day_train
+buysell_range = buysell.between_time(start_time='09:30', end_time='16:00')
+buysell_range = buysell_range[str(day_range[0].date()):str(day_range[1].date())]
+buysell_day = buysell_range.resample('1d', fill_method=None).sum()
+datetime_index = np.empty((len(buysell_day)*(int((end_time-start_time)*3600)+1), 2), dtype=int)
+id_index = 0
+for day in range(len(buysell_day)):
+    if buysell_day.values[day][0] != 0.0:
+        for sec in range(int((end_time-start_time) * 3600)+1):
+            datetime_index[id_index] = (day, int((start_time-pre_time)*3600)+sec)
+            id_index = id_index + 1
+datetime_index = np.resize(datetime_index, (id_index, 2))
+datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20)
 
-#start_time = time.time()
-#save_plots(data)
-#print("--- %s seconds ---" % (time.time() - start_time))
+start_time = time.time()
+save_plots(data)
+print("--- %s seconds ---" % (time.time() - start_time))
 
+pr.enable()
 start_time = time.time()
 for m in range(23400):
     x_state, y_state = data.get_next_second()
@@ -138,9 +155,10 @@ for m in range(23400):
 #        print("x_state3d={} y_state={}".format(x_state3d.shape, y_state))
     else:
         print("x_state is None")
-
+pr.disable()
 print("--- %s seconds ---" % (time.time() - start_time))
 
+pr.dump_stats('profile.pstat')
 #    data.plot_day_2d()
 #    state3d = state.reshape(6, 60, 5)
 
