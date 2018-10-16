@@ -352,7 +352,7 @@ def daily_plots(df, days, stop=10, signals=None, thread_count=1):
 
 print("Using:", matplotlib.get_backend())
 
-df = data.ohlcv_csv("../ib/wdc_ohlcv_1_year.csv")
+df = data.ohlcv_csv("../wdcdata/wdc_ohlcv_1_year.csv")
 df.fill_gaps()
 
 print("loaded data types:\n" + str(df.data.dtypes))
@@ -370,7 +370,7 @@ days = days.normalize()
 
 threads = 6
 buysell_from_df(df, days, stop=16, thread_count=threads)
-buysell.to_csv("wdc_ohlcv_1_year_buysell.csv")
+buysell.to_csv("../wdcdata/wdc_ohlcv_1_year_buysell.csv")
 #signals_from_df(df, days, stop=16, thread_count=threads)
 #daily_plots(df, days, stop=16, signals=signal_results, thread_count=threads)
 #signal_results.to_csv("wdc_ohlcv_1_year_signals.csv")

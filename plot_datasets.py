@@ -10,6 +10,10 @@ from matplotlib.patches import Rectangle
 from datasets import dataset
 from sklearn.model_selection import train_test_split
 import cProfile as profile
+from data_generator import data_generator
+
+test1day = False
+testall = True
 
 pr = profile.Profile()
 pr.disable()
@@ -104,13 +108,13 @@ def save_plots(data):
 print("Using:", matplotlib.get_backend())
 
 # load OHLCV
-df = data.ohlcv_csv("../ib/wdc_ohlcv_1_year.csv")
+df = data.ohlcv_csv("../wdcdata/wdc_ohlcv_1_year.csv")
 
 # resample data to include all seconds
 df = df.resample(period='1s')
 
 # load buysell data
-buysell = pd.read_csv("wdc_ohlcv_1_year_buysell.csv", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
+buysell = pd.read_csv("../wdcdata/wdc_ohlcv_1_year_buysell.csv", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
 
 # merge the two
 df.data = df.data.join(buysell)
@@ -142,23 +146,35 @@ for day in range(len(buysell_day)):
 datetime_index = np.resize(datetime_index, (id_index, 2))
 datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20)
 
-start_time = time.time()
-save_plots(data)
-print("--- %s seconds ---" % (time.time() - start_time))
+#start_time = time.time()
+#save_plots(data)
+#print("--- %s seconds ---" % (time.time() - start_time))
 
-pr.enable()
-start_time = time.time()
-for m in range(23400):
-    x_state, y_state = data.get_next_second()
-    if x_state is not None:
-        x_state3d = x_state.reshape(9, 60, 8)
-#        print("x_state3d={} y_state={}".format(x_state3d.shape, y_state))
-    else:
-        print("x_state is None")
-pr.disable()
-print("--- %s seconds ---" % (time.time() - start_time))
+if testall is True:
+    training_generator = data_generator(datetime_index, data, (9, 60, 8), batch_size=9000)
 
-pr.dump_stats('profile.pstat')
+    pr.enable()
+    start_time = time.time()
+    for m in range(training_generator.__len__()):
+        X, y = training_generator.__getitem__(m)
+    print("--- %s seconds ---" % (time.time() - start_time))
+    pr.disable()
+    pr.dump_stats('profile.pstat')
+
+if test1day is True:
+    pr.enable()
+    start_time = time.time()
+    for m in range(23400):
+        x_state, y_state = data.get_next_second()
+        if x_state is not None:
+            x_state3d = x_state.reshape(9, 60, 8)
+    #        print("x_state3d={} y_state={}".format(x_state3d.shape, y_state))
+        else:
+            print("x_state is None")
+    pr.disable()
+    print("--- %s seconds ---" % (time.time() - start_time))
+    pr.dump_stats('profile.pstat')
+
 #    data.plot_day_2d()
 #    state3d = state.reshape(6, 60, 5)
 

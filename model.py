@@ -9,13 +9,13 @@ from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping, ModelCh
 from sklearn.model_selection import train_test_split
 
 # load OHLCV
-df = data.ohlcv_csv("../ib/wdc_ohlcv_1_year.csv")
+df = data.ohlcv_csv("../wdcdata/wdc_ohlcv_1_year.csv")
 
 # resample data to include all seconds
 df = df.resample(period='1s')
 
 # load buysell data
-buysell = pd.read_csv("wdc_ohlcv_1_year_buysell.csv", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
+buysell = pd.read_csv("../wdcdata/wdc_ohlcv_1_year_buysell.csv", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
 
 # merge the two
 df.data = df.data.join(buysell)
@@ -88,7 +88,7 @@ model.fit_generator(generator=training_generator,
                     validation_steps=len(datetime_index_validate) // batch_size,
 #                    use_multiprocessing=True,
 #                    workers=6,
-                    epochs=10, verbose=1, max_q_size=100,
+                    epochs=10, verbose=1, max_q_size=10,
                     callbacks = [lr_reducer, early_stopper, csv_logger, checkpoint])
 
 y_train = np.zeros([data.get_day_size()*data.get_seconds_remain()])
