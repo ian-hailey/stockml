@@ -80,10 +80,13 @@ class dataset(object):
     def get_feature_size(self):
         return self.feature_size
 
-    def get_second(self, day_index, sec_index):
+    def get_second(self, day_index, sec_index, train=True):
         x_index = 0
         x_state = np.empty((self.hist_days+self.hist_mins+self.hist_secs, self.feature_size))
-        y_state = self.day_data[day_index].data_s_values[sec_index][5]
+        if train:
+            y_state = self.day_data[day_index].data_s_values[sec_index][5]
+        else:
+            y_state = None
         if np.isnan(y_state) == False:
             minute_index = int(sec_index / 60)
             # add last 240 days
