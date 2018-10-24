@@ -13,10 +13,26 @@ from sklearn.model_selection import train_test_split
 # files
 ohlcv_file = "../wdcdata/wdc_ohlcv_1_year.csv"
 buysell_file = "../wdcdata/wdc_ohlcv_1_year_buysell.csv"
-saved_model = "../wdcdata/weights-08-0.10.hdf5"
+saved_model = None
 
-# Train or predict
-train = False
+try:
+    opts, args = getopt.getopt(sys.argv[1:],"hp:",["saved_model="])
+except getopt.GetoptError:
+    print('model.py -p<weights>')
+    sys.exit(2)
+for opt, arg in opts:
+    if opt == '-h':
+        print("model.py -p<weights>")
+        sys.exit()
+    elif opt == '-p':
+        saved_model = arg
+
+if saved_model != None:
+    print("Prediction Mode: Input file is {}".format(saved_model))
+    train = False
+else:
+    print("Training Mode")
+    train = True
 
 # Setup the dataset generator params
 hist_days=240
@@ -63,7 +79,7 @@ buysell_day = buysell_range.resample('1d', fill_method=None).sum()
 
 datetime_index = np.empty((len(buysell_day)*(int((end_time-start_time)*3600)+1), 2), dtype=int)
 id_index = 0
-for day in range(5):#len(buysell_day)):
+for day in range(len(buysell_day)):
     if buysell_day.values[day][0] != 0.0:
         for sec in range(int((end_time-start_time) * 3600)+1):
             datetime_index[id_index] = (day, int((start_time - pre_time) * 3600) + sec)
@@ -101,9 +117,16 @@ if train:
                         callbacks = [lr_reducer, early_stopper, csv_logger, checkpoint])
 else:
     # data generator
-    predict_generator = data_generator(datetime_index, data, (y_dim, 60, feature_planes), batch_size=batch_size, train=False)
+    predict_generator = data_generator(datetime_index, data, (y_dim, 60, feature_planes), batch_size=batch_size, shuffle=False, train=False)
     # load weights
     model.load_weights(saved_model)
     # predict from dataset
-    results = model.predict_generator(generator=predict_generator, steps=len(datetime_index) // batch_size, verbose=1, max_q_size=10)
+    results = model.predict_generator(generator=predict_generator, steps=np.ceil(len(datetime_index) / batch_size), verbose=1, max_q_size=10)
+    print(results)
+    resultsall = results[:datetime_index.shape[0]]
+    buysell_range_short = buysell_range.iloc[:datetime_index.shape[0]]
+    buysell_range_short['preds'] = resultsall
+    buysell_range_short.to_csv("wdc_ohlcv_1_year_buysell_preds.csv")
+#    res = np.hstack((datetime_index[:results.shape[0],:], results))
+#    np.savetxt("results.txt", res, delimiter=',')
 pass
