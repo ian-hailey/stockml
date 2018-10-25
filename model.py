@@ -5,16 +5,16 @@ import pandas as pd
 import numpy as np
 import sys
 import getopt
+import os
 from datasets import dataset
 from data_generator import data_generator
 from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping, ModelCheckpoint
 from sklearn.model_selection import train_test_split
 
 # files
-#ohlcv_file = "../wdcdata/wdc_ohlcv_1_year.csv"
-#buysell_file = "../wdcdata/wdc_ohlcv_1_year_buysell.csv"
 ohlcv_file = "../wdcdata/wdc_ohlcv_1_year_2016.csv"
-buysell_file = None
+buysell_file = "../wdcdata/wdc_ohlcv_1_year_2016.csv.buysell"
+#buysell_file = None
 saved_model = None
 
 try:
@@ -105,8 +105,13 @@ if train:
     early_stopper = EarlyStopping(min_delta=0.001, patience=10)
     csv_logger = CSVLogger('resnet18_wdc.csv')
 
+    # create folder for weights
+    subfolder = os.path.splitext(os.path.basename(ohlcv_file))[0]
+    if not os.path.exists(subfolder):
+        os.makedirs(subfolder)
+
     # checkpoint
-    filepath="weights-{epoch:02d}-{val_loss:.2f}.hdf5"
+    filepath=subfolder + "/weights-{epoch:02d}-{val_loss:.2f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=False, mode='min')
 
     # train model on dataset
