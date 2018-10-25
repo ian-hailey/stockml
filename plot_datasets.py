@@ -1,6 +1,6 @@
 import data
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 import time
@@ -13,7 +13,7 @@ import cProfile as profile
 from data_generator import data_generator
 
 test1day = False
-testall = True
+testall = False
 
 pr = profile.Profile()
 pr.disable()
@@ -108,13 +108,13 @@ def save_plots(data):
 print("Using:", matplotlib.get_backend())
 
 # load OHLCV
-df = data.ohlcv_csv("../wdcdata/wdc_ohlcv_1_year.csv")
+df = data.ohlcv_csv("../wdcdata/wdc_ohlcv_1_year_2016.csv")
 
 # resample data to include all seconds
 df = df.resample(period='1s')
 
 # load buysell data
-buysell = pd.read_csv("../wdcdata/wdc_ohlcv_1_year_buysell.csv", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
+buysell = pd.read_csv("../wdcdata/wdc_ohlcv_1_year_2016.csv.buysell", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
 
 # merge the two
 df.data = df.data.join(buysell)
@@ -126,7 +126,8 @@ print(df.data)
 
 data = dataset(df)
 print(data.get_date_range())
-error = data.select_day(dayDate='2018-04-25')
+error = data.select_day(dayDate='2017-04-26')
+#error = data.select_day(dayDate='2018-04-25')
 
 # filter out all the pre-post market
 pre_time = 4.0
@@ -146,9 +147,9 @@ for day in range(len(buysell_day)):
 datetime_index = np.resize(datetime_index, (id_index, 2))
 datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20)
 
-#start_time = time.time()
-#save_plots(data)
-#print("--- %s seconds ---" % (time.time() - start_time))
+start_time = time.time()
+save_plots(data)
+print("--- %s seconds ---" % (time.time() - start_time))
 
 if testall is True:
     training_generator = data_generator(datetime_index, data, (9, 60, 8), batch_size=9000)

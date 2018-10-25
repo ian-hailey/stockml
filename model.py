@@ -11,8 +11,10 @@ from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping, ModelCh
 from sklearn.model_selection import train_test_split
 
 # files
-ohlcv_file = "../wdcdata/wdc_ohlcv_1_year.csv"
-buysell_file = "../wdcdata/wdc_ohlcv_1_year_buysell.csv"
+#ohlcv_file = "../wdcdata/wdc_ohlcv_1_year.csv"
+#buysell_file = "../wdcdata/wdc_ohlcv_1_year_buysell.csv"
+ohlcv_file = "../wdcdata/wdc_ohlcv_1_year_2016.csv"
+buysell_file = None
 saved_model = None
 
 try:
@@ -49,11 +51,11 @@ df = data.ohlcv_csv(ohlcv_file)
 # Resample data to include all seconds
 df = df.resample(period='1s')
 
-# load buysell data
-buysell = pd.read_csv(buysell_file, header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
-
-# merge the two
-df.data = df.data.join(buysell)
+if buysell_file is not None:
+    # load buysell data
+    buysell = pd.read_csv(buysell_file, header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
+    # merge the two
+    df.data = df.data.join(buysell)
 
 print("loaded data types:\n" + str(df.data.dtypes))
 print(df.data.index)
@@ -67,20 +69,21 @@ data = dataset(df, hist_days=hist_days, hist_mins=hist_mins, hist_secs=hist_secs
 data.select_day(dayIndex=0)
 day_range = data.get_date_range()
 day_size = data.get_day_size()
+data_days = data.data.resample()
 feature_planes = data.get_feature_size()
 
 print(day_range)
 print("daysize={} daysecs={}".format(day_size, data.get_seconds_remain()))
 
-# filter out all the pre-post market
-buysell_range = buysell.between_time(start_time='09:30', end_time='16:00')
-buysell_range = buysell_range[str(day_range[0].date()):str(day_range[1].date())]
-buysell_day = buysell_range.resample('1d', fill_method=None).sum()
-
-datetime_index = np.empty((len(buysell_day)*(int((end_time-start_time)*3600)+1), 2), dtype=int)
+datetime_index = np.empty((day_size*(int((end_time-start_time)*3600)+1), 2), dtype=int)
+datetime_df = pd.DataFrame()
 id_index = 0
-for day in range(len(buysell_day)):
-    if buysell_day.values[day][0] != 0.0:
+for day in range(day_size):
+    if data_days.data['Volume'][day_range[0] + pd.DateOffset(days=day)] != 0.0:
+        datetime_day = pd.date_range(day_range[0] + pd.DateOffset(days=day) + pd.DateOffset(hours=start_time),
+                                     day_range[0] + pd.DateOffset(days=day) + pd.DateOffset(hours=end_time), freq='S')
+        datetime_day_df = pd.DataFrame(index=datetime_day)
+        datetime_df = pd.concat([datetime_df, datetime_day_df])
         for sec in range(int((end_time-start_time) * 3600)+1):
             datetime_index[id_index] = (day, int((start_time - pre_time) * 3600) + sec)
             id_index = id_index + 1
@@ -121,12 +124,9 @@ else:
     # load weights
     model.load_weights(saved_model)
     # predict from dataset
-    results = model.predict_generator(generator=predict_generator, steps=np.ceil(len(datetime_index) / batch_size), verbose=1, max_q_size=10)
+    results = model.predict_generator(generator=predict_generator, steps=int(np.ceil(len(datetime_index) / batch_size)), verbose=1, max_q_size=10)
     print(results)
     resultsall = results[:datetime_index.shape[0]]
-    buysell_range_short = buysell_range.iloc[:datetime_index.shape[0]]
-    buysell_range_short['preds'] = resultsall
-    buysell_range_short.to_csv("wdc_ohlcv_1_year_buysell_preds.csv")
-#    res = np.hstack((datetime_index[:results.shape[0],:], results))
-#    np.savetxt("results.txt", res, delimiter=',')
+    datetime_df['preds'] = resultsall
+    datetime_df.to_csv(ohlcv_file + ".preds")
 pass

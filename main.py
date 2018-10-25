@@ -225,7 +225,12 @@ def signal_gains(df_day_s, day, stop=10, openThreshold=0.5, closeThreshold=0.0):
 
 print("Using:", matplotlib.get_backend())
 
-df = data.ohlcv_csv("../wdcdata/wdc_ohlcv_1_year.csv")
+simulate_trades = True
+generate_buysell = False
+
+ohlcv_file = "../wdcdata/wdc_ohlcv_1_year_2016.csv"
+
+df = data.ohlcv_csv(ohlcv_file)
 df.fill_gaps()
 
 print("loaded data types:\n" + str(df.data.dtypes))
@@ -238,26 +243,31 @@ df_days.compute_ma()
 df_days.data['Close'].plot()
 plt.close()
 
-buysell_pred = pd.read_csv("wdc_ohlcv_1_year_buysell_preds.csv", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
+if simulate_trades is True:
+    preds = pd.read_csv(ohlcv_file + ".preds", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
+    buysell = pd.read_csv(ohlcv_file + ".buysell", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
 
-days = pd.date_range(buysell_pred.index[0], buysell_pred.index[-1], freq='1D')
-days = days.normalize()
-totalGain = 0
-for i in range(days.size):
-    dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=16), freq='S')
-    df_day_s = df.daterange(dates_day_s)
-    df_day_s.data = df_day_s.data.join(buysell_pred)
-#    results = signal_day(df_day_s, days[i], 16, 'S')
-    totalGain = totalGain + signal_gains(df_day_s, days[i], 16)
-print("Total Gain={:.2f}%".format(totalGain * 100))
+    days = pd.date_range(preds.index[0], preds.index[-1], freq='1D')
+    days = days.normalize()
+    totalGain = 0
+    for i in range(days.size):
+        dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=16), freq='S')
+        df_day_s = df.daterange(dates_day_s)
+        df_day_s.data = df_day_s.data.join(buysell)
+        df_day_s.data = df_day_s.data.join(preds)
+        results = signal_day(df_day_s, days[i], 16, 'S')
+    #    totalGain = totalGain + signal_gains(df_day_s, days[i], 16)
+    print("Total Gain={:.2f}%".format(totalGain * 100))
 
-#threads = 1
-#buysell = buysell_signal.signal()
-#signal = buysell.from_df(df, days, stop=16, thread_count=threads)
-#signal.to_csv("../wdcdata/wdc_ohlcv_1_year_buysell_new.csv")
-
-#signals_from_df(df, days, stop=16, thread_count=threads)
-#daily_plots(df, days, stop=16, signals=signal_results, thread_count=threads)
-#signal_results.to_csv("wdc_ohlcv_1_year_signals.csv")
+if generate_buysell is True:
+    threads = 6
+    days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
+    days = days.normalize()
+    buysell = buysell_signal.signal()
+    signal = buysell.from_df(df, days, stop=16, thread_count=threads)
+    signal.to_csv(ohlcv_file + ".buysell")
+    #signals_from_df(df, days, stop=16, thread_count=threads)
+    #daily_plots(df, days, stop=16, signals=signal_results, thread_count=threads)
+    #signal_results.to_csv("wdc_ohlcv_1_year_signals.csv")
 
 pass

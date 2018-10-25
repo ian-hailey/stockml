@@ -87,20 +87,19 @@ class dataset(object):
             y_state = self.day_data[day_index].data_s_values[sec_index][5]
         else:
             y_state = None
-        if np.isnan(y_state) == False:
-            minute_index = int(sec_index / 60)
-            # add last 240 days
-            x_state[x_index:self.hist_days, 0:5] = self.data_d_values[day_index:day_index+self.hist_days, :] / self.day_data[day_index].open
-            x_index = x_index + self.hist_days
-            # add last 240 minutes
-            x_state[x_index:x_index+self.hist_mins, 0:5] = self.day_data[day_index].data_m_values[minute_index - self.hist_mins:minute_index, :]
-            # add last 60 seconds
-            x_index = x_index + self.hist_mins
-            x_state[x_index:x_index+self.hist_secs, 0:5] = self.day_data[day_index].data_s_values[sec_index-(self.hist_secs-1):sec_index+1,:5]
-            # add time stamp planes
-            x_state[:, 5:6] = self.day_data[day_index].date_month
-            x_state[:, 6:7] = self.day_data[day_index].date_day
-            x_state[:, 7:8] = sec_index-self.day_data[day_index].day_open_s
+        minute_index = int(sec_index / 60)
+        # add last 240 days
+        x_state[x_index:self.hist_days, 0:5] = self.data_d_values[day_index:day_index+self.hist_days, :] / self.day_data[day_index].open
+        x_index = x_index + self.hist_days
+        # add last 240 minutes
+        x_state[x_index:x_index+self.hist_mins, 0:5] = self.day_data[day_index].data_m_values[minute_index - self.hist_mins:minute_index, :]
+        # add last 60 seconds
+        x_index = x_index + self.hist_mins
+        x_state[x_index:x_index+self.hist_secs, 0:5] = self.day_data[day_index].data_s_values[sec_index-(self.hist_secs-1):sec_index+1,:5]
+        # add time stamp planes
+        x_state[:, 5:6] = self.day_data[day_index].date_month
+        x_state[:, 6:7] = self.day_data[day_index].date_day
+        x_state[:, 7:8] = sec_index-self.day_data[day_index].day_open_s
         return x_state, y_state
 
     def get_next_second(self):
