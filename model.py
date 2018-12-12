@@ -1,5 +1,5 @@
 import data
-import resnet
+import tresnet
 import time
 import pandas as pd
 import numpy as np
@@ -63,7 +63,7 @@ print(df.data.index)
 print(df.data.dtypes)
 print(df.data)
 
-y_dim = int((hist_days + hist_mins + hist_secs) / 60)
+period_dim = hist_days + hist_mins + hist_secs
 
 # Create dataset instance
 data = dataset(df, hist_days=hist_days, hist_mins=hist_mins, hist_secs=hist_secs)
@@ -92,7 +92,7 @@ datetime_index = np.resize(datetime_index, (id_index, 2))
 datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20)
 
 # build the resnet model
-model = resnet.ResnetBuilder.build_resnet_18((feature_planes, y_dim, 60), 1)
+model = tresnet.TResnetBuilder.build_tresnet_18([(feature_planes, 240), (feature_planes, 240), (feature_planes, 60)], 1)
 model.compile(loss='mean_squared_error',
               optimizer='adam',
               metrics=['mse'])

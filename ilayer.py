@@ -5,7 +5,6 @@ import numpy as np
 
 class iLayer(Layer):
     def __init__(self, **kwargs):
-        # self.output_dim = output_dim
         super(iLayer, self).__init__(**kwargs)
 
     def build(self, input_shape):
