@@ -12,13 +12,11 @@ from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping, ModelCh
 from sklearn.model_selection import train_test_split
 
 # files
-ohlcv_file = "../wdcdata/wdc_ohlcv_1_year_2016.csv"
-buysell_file = "../wdcdata/wdc_ohlcv_1_year_2016.csv.buysell"
-#buysell_file = None
+ohlcv_file = "../wdcdata/wdc_ohlcv_1_year.csv"
 saved_model = None
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"hp:",["saved_model="])
+    opts, args = getopt.getopt(sys.argv[1:],"hpo:",["saved_model="])
 except getopt.GetoptError:
     print('model.py -p<weights>')
     sys.exit(2)
@@ -26,6 +24,8 @@ for opt, arg in opts:
     if opt == '-h':
         print("model.py -p<weights>")
         sys.exit()
+    elif opt == '-o':
+        ohlcv_file = arg
     elif opt == '-p':
         saved_model = arg
 
@@ -33,7 +33,8 @@ if saved_model != None:
     print("Prediction Mode: Input file is {}".format(saved_model))
     train = False
 else:
-    print("Training Mode")
+    buysell_file = ohlcv_file + ".buysell"
+    print("Training Mode ohlcv file is {}".format(ohlcv_file))
     train = True
 
 # Setup the dataset generator params
@@ -51,7 +52,7 @@ df = data.ohlcv_csv(ohlcv_file)
 # Resample data to include all seconds
 df = df.resample(period='1s')
 
-if buysell_file is not None:
+if train is True:
     # load buysell data
     buysell = pd.read_csv(buysell_file, header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
     # merge the two
