@@ -31,7 +31,8 @@ class dataset(object):
         self.hist_mins = hist_mins
         self.hist_secs = hist_secs
         self.day_data = []
-        self.feature_size = 5
+        self.feature_size = 5 # OHLCV
+        self.external_size = 439 # month 12, day 31, week day 5, minute 391 (9:30 - 16:00)
         df_days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
         df_days = df_days.normalize()
         if df_days.size > self.hist_days:
@@ -82,7 +83,14 @@ class dataset(object):
     def get_feature_size(self):
         return self.feature_size
 
+    def get_external_size(self):
+        return self.external_size
+
     def get_second(self, day_index, sec_index, train=True):
+#        print("day={} sec={} month={} day={} wday={}".format(day_index, sec_index,
+#                                                             self.day_data[day_index].date_month,
+#                                                             self.day_data[day_index].date_day,
+#                                                             self.day_data[day_index].date_wday))
         x_state = []
         if train:
             y_state = self.day_data[day_index].data_s_values[sec_index][5]
@@ -96,11 +104,12 @@ class dataset(object):
         # s - last 60 seconds
         x_state.append(self.day_data[day_index].data_s_values[sec_index-(self.hist_secs-1):sec_index+1,:5])
         # add external features datetime etc.
-        x_external = np.empty(438) # month 12, day 31, wday 5, minute 390 (9:30 - 16:00)
-        x_external[0:12] = ml.indices2one_hot([self.day_data[day_index].date_month], 12)[0]
-        x_external[12:12+31] = ml.indices2one_hot([self.day_data[day_index].date_day], 31)[0]
+        x_external = np.empty(self.external_size)
+        x_external[0:12] = ml.indices2one_hot([self.day_data[day_index].date_month-1], 12)[0]
+        x_external[12:12+31] = ml.indices2one_hot([self.day_data[day_index].date_day-1], 31)[0]
         x_external[12+31:12+31+5] = ml.indices2one_hot([self.day_data[day_index].date_wday], 5)[0]
-        x_external[12+31+5:12+31+5+390] = ml.indices2one_hot([int((sec_index - self.day_data[day_index].day_open_s) / 60)], 390)[0]
+        x_external[12+31+5:12+31+5+391] = ml.indices2one_hot([int((sec_index - self.day_data[day_index].day_open_s) / 60)], 391)[0]
+        x_external = x_external.reshape(self.external_size)
         x_state.append(x_external)
         return x_state, y_state
 

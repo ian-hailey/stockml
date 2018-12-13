@@ -13,7 +13,8 @@ import cProfile as profile
 from data_generator import data_generator
 
 test1day = False
-testall = False
+testall = True
+doplots = False
 
 pr = profile.Profile()
 pr.disable()
@@ -147,12 +148,13 @@ for day in range(len(buysell_day)):
 datetime_index = np.resize(datetime_index, (id_index, 2))
 datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20)
 
-start_time = time.time()
-save_plots(data)
-print("--- %s seconds ---" % (time.time() - start_time))
+if doplots is True:
+    start_time = time.time()
+    save_plots(data)
+    print("--- %s seconds ---" % (time.time() - start_time))
 
 if testall is True:
-    training_generator = data_generator(datetime_index, data, (9, 60, 8), batch_size=9000)
+    training_generator = data_generator(datetime_index, data, batch_size=9000)
 
     pr.enable()
     start_time = time.time()

@@ -63,8 +63,6 @@ print(df.data.index)
 print(df.data.dtypes)
 print(df.data)
 
-period_dim = hist_days + hist_mins + hist_secs
-
 # Create dataset instance
 data = dataset(df, hist_days=hist_days, hist_mins=hist_mins, hist_secs=hist_secs)
 data.select_day(dayIndex=0)
@@ -72,6 +70,7 @@ day_range = data.get_date_range()
 day_size = data.get_day_size()
 data_days = data.data.resample()
 feature_planes = data.get_feature_size()
+external_size = data.get_external_size()
 
 print(day_range)
 print("daysize={} daysecs={}".format(day_size, data.get_seconds_remain()))
@@ -92,19 +91,21 @@ datetime_index = np.resize(datetime_index, (id_index, 2))
 datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20)
 
 # build the resnet model
-model = tresnet.TResnetBuilder.build_tresnet_18([(feature_planes, 240), (feature_planes, 240), (feature_planes, 60)], 1)
+model = tresnet.TResnetBuilder.build_tresnet_18([(feature_planes, hist_days),
+                                                 (feature_planes, hist_mins),
+                                                 (feature_planes, hist_secs)], external_size, 1)
 model.compile(loss='mean_squared_error',
               optimizer='adam',
               metrics=['mse'])
 
 if train:
     # data generators
-    training_generator = data_generator(datetime_index_train, data, (y_dim, 60, feature_planes), batch_size=batch_size)
-    validation_generator = data_generator(datetime_index_validate, data, (y_dim, 60, feature_planes), batch_size=batch_size)
+    training_generator = data_generator(datetime_index_train, data, batch_size=batch_size)
+    validation_generator = data_generator(datetime_index_validate, data, batch_size=batch_size)
     # fit callbacks
     lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1), cooldown=0, patience=5, min_lr=0.5e-6)
     early_stopper = EarlyStopping(min_delta=0.001, patience=10)
-    csv_logger = CSVLogger('resnet18_wdc.csv')
+    csv_logger = CSVLogger('tresnet18_wdc.csv')
 
     # create folder for weights
     subfolder = os.path.splitext(os.path.basename(ohlcv_file))[0]
@@ -112,7 +113,7 @@ if train:
         os.makedirs(subfolder)
 
     # checkpoint
-    filepath=subfolder + "/weights-{epoch:02d}-{val_loss:.2f}.hdf5"
+    filepath=subfolder + "/tresnet18-{epoch:02d}-{val_loss:.2f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=False, mode='min')
 
     # train model on dataset
@@ -126,7 +127,7 @@ if train:
                         callbacks = [lr_reducer, early_stopper, csv_logger, checkpoint])
 else:
     # data generator
-    predict_generator = data_generator(datetime_index, data, (y_dim, 60, feature_planes), batch_size=batch_size, shuffle=False, train=False)
+    predict_generator = data_generator(datetime_index, data, batch_size=batch_size, shuffle=False, train=False)
     # load weights
     model.load_weights(saved_model)
     # predict from dataset

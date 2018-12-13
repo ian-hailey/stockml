@@ -154,7 +154,7 @@ def signal_plot(day, close, ma5, buysell, preds, openIndex):
     ax2.plot(preds, color='green')
     plt.axhline(y=0.0, ls='--', color='grey')
     plt.axvline(x=openIndex, ls='--', color='grey')
-    filename = "wdc_buysell/wdc_pred_{}.jpg".format(day.strftime('%Y-%m-%d'))
+    filename = "wdc_buysell/wdc_pred_2016_{}.jpg".format(day.strftime('%Y-%m-%d'))
     fig.savefig(filename)
     plt.close()
 

@@ -3,9 +3,8 @@ import keras
 from sklearn.utils import shuffle
 
 class data_generator(keras.utils.Sequence):
-    def __init__(self, date_index, data, dim=(32,32,32), batch_size=32, shuffle=True, train=True):
+    def __init__(self, date_index, data, batch_size=32, shuffle=True, train=True):
         'Initialization'
-        self.dim = dim
         self.batch_size = batch_size
         self.data = data
         self.date_index = date_index
@@ -39,21 +38,27 @@ class data_generator(keras.utils.Sequence):
         'Generates data containing batch_size samples'
         # X : (n_samples, *dim, n_channels)
         # Initialization
-        X = np.empty((self.batch_size, *self.dim))
+        X = []
         if train:
             y = np.empty((self.batch_size))
         else:
             y = None
 
         # Generate data
-        for index, date in enumerate(batch_index):
+        for batch_item, date in enumerate(batch_index):
             x_state, y_state = self.data.get_second(date[0], date[1], train)
 
-            # Store sample
-            X[index,] = x_state.reshape(self.dim)
+            # on first itteration allocate space for all the batch
+            if X.__len__() == 0:
+                for x_item in x_state:
+                    X.append(np.empty((self.batch_size, *x_item.shape)))
+
+            # Store batch item
+            for item_index, x_item in enumerate(x_state):
+                X[item_index][batch_item,] = x_item
 
             if train:
                 # Store signal
-                y[index] = y_state
+                y[batch_item] = y_state
 
         return X, y

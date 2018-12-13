@@ -7,7 +7,8 @@ from keras.layers import (
     Activation,
     Dense,
     Flatten,
-    concatenate
+    concatenate,
+    merge
 )
 from keras.layers.convolutional import (
     Conv1D, Conv2D,
@@ -229,11 +230,12 @@ class TResnetBuilder(object):
         return input, output
 
     @staticmethod
-    def build(input_shapes, num_outputs, block_fn, repetitions):
+    def build(input_shapes, external_shape, num_outputs, block_fn, repetitions):
         """Compiles a custom temporal ResNet like architecture.
 
         Args:
             input_shapes: The list input shape in the form (nb_channels, nb_periods)
+            external_shape: The size of the external features one hot encoded
             num_outputs: The number of outputs at final softmax layer, 0=Omit final Dense layer
             block_fn: The block function to use. This is either `basic_block` or `bottleneck`.
                 The original paper used basic_block for layers < 50
@@ -254,32 +256,44 @@ class TResnetBuilder(object):
             main_inputs.append(input)
             outputs.append(output)
 
+        # concatenate all nets together
         main_output = concatenate(outputs)
+
+        # fuse with external features
+        if external_shape != None and external_shape > 0:
+            external_input = Input(shape=(external_shape,))
+            main_inputs.append(external_input)
+            embedding = Dense(output_dim=min(50, external_shape))(external_input)
+            embedding = Activation('relu')(embedding)
+            h1 = Dense(output_dim=len(input_shapes)*len(repetitions)*64*2)(embedding)
+            external_output = Activation('relu')(h1)
+            main_output = merge([main_output, external_output], mode='sum')
 
         main_output = Dense(units=num_outputs, kernel_initializer="he_normal",
                             activation="linear")(main_output)
+
 
         model = Model(inputs=main_inputs, outputs=main_output)
         plot_model(model, to_file='T-ResNet.png', show_shapes=True)
         return model
 
     @staticmethod
-    def build_tresnet_18(input_shape, num_outputs):
-        return TResnetBuilder.build(input_shape, num_outputs, basic_block, [2, 2, 2, 2])
+    def build_tresnet_18(input_shape, external_shape, num_outputs):
+        return TResnetBuilder.build(input_shape, external_shape, num_outputs, basic_block, [2, 2, 2, 2])
 
     @staticmethod
-    def build_tresnet_34(input_shape, num_outputs):
-        return TResnetBuilder.build(input_shape, num_outputs, basic_block, [3, 4, 6, 3])
+    def build_tresnet_34(input_shape, external_shape, num_outputs):
+        return TResnetBuilder.build(input_shape, external_shape, num_outputs, basic_block, [3, 4, 6, 3])
 
     @staticmethod
-    def build_tresnet_50(input_shape, num_outputs):
-        return TResnetBuilder.build(input_shape, num_outputs, bottleneck, [3, 4, 6, 3])
+    def build_tresnet_50(input_shape, external_shape, num_outputs):
+        return TResnetBuilder.build(input_shape, external_shape, num_outputs, bottleneck, [3, 4, 6, 3])
 
     @staticmethod
-    def build_tresnet_101(input_shape, num_outputs):
-        return TResnetBuilder.build(input_shape, num_outputs, bottleneck, [3, 4, 23, 3])
+    def build_tresnet_101(input_shape, external_shape, num_outputs):
+        return TResnetBuilder.build(input_shape, external_shape, num_outputs, bottleneck, [3, 4, 23, 3])
 
     @staticmethod
-    def build_tresnet_152(input_shape, num_outputs):
-        return TResnetBuilder.build(input_shape, num_outputs, bottleneck, [3, 8, 36, 3])
+    def build_tresnet_152(input_shape, external_shape, num_outputs):
+        return TResnetBuilder.build(input_shape, external_shape, num_outputs, bottleneck, [3, 8, 36, 3])
 
