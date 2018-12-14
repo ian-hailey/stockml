@@ -16,13 +16,13 @@ ohlcv_file = "../wdcdata/wdc_ohlcv_1_year.csv"
 saved_model = None
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"hpo:",["saved_model="])
+    opts, args = getopt.getopt(sys.argv[1:],"hp:o:",["saved_model="])
 except getopt.GetoptError:
     print('model.py -p<weights>')
     sys.exit(2)
 for opt, arg in opts:
     if opt == '-h':
-        print("model.py -p<weights>")
+        print("model.py -o<ohlcv> -p<weights>")
         sys.exit()
     elif opt == '-o':
         ohlcv_file = arg
