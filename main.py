@@ -7,6 +7,8 @@ import matplotlib.gridspec as gridspec
 import pandas as pd
 import time
 import numpy as np
+import sys
+import getopt
 from matplotlib.dates import DateFormatter
 from multiprocessing import Pool, Lock
 from scipy.signal import argrelextrema
@@ -225,10 +227,26 @@ def signal_gains(df_day_s, day, stop=10, openThreshold=0.5, closeThreshold=0.0):
 
 print("Using:", matplotlib.get_backend())
 
-simulate_trades = True
-generate_buysell = False
+simulate_trades = False
+generate_buysell = True
 
-ohlcv_file = "../wdcdata/wdc_ohlcv_1_year_2016.csv"
+ohlcv_file = "../wdcdata/wdc_ohlcv_1_year.csv"
+
+try:
+    opts, args = getopt.getopt(sys.argv[1:],"hp:o:",["preds=","ohlcv="])
+except getopt.GetoptError:
+    print('model.py -p<weights>')
+    sys.exit(2)
+for opt, arg in opts:
+    if opt == '-h':
+        print("model.py -o<ohlcv> -p<preds>")
+        sys.exit()
+    elif opt == '-o':
+        ohlcv_file = arg
+    elif opt == '-p':
+        preds_file = arg
+        simulate_trades = True
+        generate_buysell = False
 
 df = data.ohlcv_csv(ohlcv_file)
 df.fill_gaps()
@@ -243,8 +261,12 @@ df_days.compute_ma()
 df_days.data['Close'].plot()
 plt.close()
 
+print("OHLCV File " + ohlcv_file)
+
 if simulate_trades is True:
-    preds = pd.read_csv(ohlcv_file + ".preds", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
+    print("Pediction File " + preds_file)
+    preds = pd.read_csv(preds_file, header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
+    print("BuySell File " + ohlcv_file + ".buysell")
     buysell = pd.read_csv(ohlcv_file + ".buysell", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
 
     days = pd.date_range(preds.index[0], preds.index[-1], freq='1D')
@@ -255,8 +277,8 @@ if simulate_trades is True:
         df_day_s = df.daterange(dates_day_s)
         df_day_s.data = df_day_s.data.join(buysell)
         df_day_s.data = df_day_s.data.join(preds)
-        results = signal_day(df_day_s, days[i], 16, 'S')
-    #    totalGain = totalGain + signal_gains(df_day_s, days[i], 16)
+    #    results = signal_day(df_day_s, days[i], 16, 'S')
+        totalGain = totalGain + signal_gains(df_day_s, days[i], 16)
     print("Total Gain={:.2f}%".format(totalGain * 100))
 
 if generate_buysell is True:
