@@ -1,6 +1,7 @@
 import numpy as np
 import talib
 import pandas as pd
+import psycopg2
 from matplotlib.dates import date2num
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib.lines import Line2D
@@ -162,3 +163,28 @@ class ohlcv_csv(ohlcv):
         self.headers = ["Date", "Open", "High", "Low", "Close", "Volume"]
         data = pd.read_csv(self.csvfile, names=self.headers, header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
         super().__init__(data)
+
+class ohlcv_db(ohlcv):
+    def __init__(self, symbol, datetime):
+        try:
+            connection = psycopg2.connect(user="postgres",
+                                          password="",
+                                          host="127.0.0.1",
+                                          port="5432",
+                                          database="stock")
+            cursor = connection.cursor()
+            print(connection.get_dsn_parameters(), "\n")
+            cursor.execute("SELECT version();")
+            record = cursor.fetchone()
+            print("Connected to - {}".format(record))
+            select = "SELECT * from {} where (datetime BETWEEN '{}' AND '{}') ORDER BY datetime;".format(symbol, datetime[0], datetime[1])
+            cursor.execute(select)
+            data = pd.DataFrame(cursor.fetchall(), columns=["Date", "Open", "High", "Low", "Close", "Volume"])
+            data = data.set_index('Date')
+            super().__init__(data)
+        except (Exception, psycopg2.Error) as error:
+            print("Error while connecting to PostgreSQL {}".format(error))
+        finally:
+            if (connection):
+                cursor.close()
+                connection.close()

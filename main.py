@@ -1,7 +1,7 @@
 import data
 import buysell_signal
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pandas as pd
@@ -230,12 +230,13 @@ print("Using:", matplotlib.get_backend())
 simulate_trades = False
 generate_buysell = True
 
-ohlcv_file = "../wdcdata/wdc_ohlcv_1_year.csv"
+ohlcv_file = None
+daterange = None
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"hp:o:",["preds=","ohlcv="])
+    opts, args = getopt.getopt(sys.argv[1:],"hp:o:d:",["preds=","ohlcv=", "daterange="])
 except getopt.GetoptError:
-    print('model.py -p<weights>')
+    print('model.py -p<weights> -o<ohlcv.csv> -d<2017-01-01,2017-06-30>')
     sys.exit(2)
 for opt, arg in opts:
     if opt == '-h':
@@ -243,12 +244,24 @@ for opt, arg in opts:
         sys.exit()
     elif opt == '-o':
         ohlcv_file = arg
+    elif opt == '-d':
+        daterange = arg.split(',')
+        if len(daterange) != 2:
+            print("Error: datarange invalid")
+            sys.exit(2)
     elif opt == '-p':
         preds_file = arg
         simulate_trades = True
         generate_buysell = False
 
-df = data.ohlcv_csv(ohlcv_file)
+if daterange is not None:
+    df = data.ohlcv_db("WDC", daterange)
+elif ohlcv_file is not None:
+    df = data.ohlcv_csv(ohlcv_file)
+else:
+    print("Error: no data source specified")
+    sys.exit(2)
+
 df.fill_gaps()
 
 print("loaded data types:\n" + str(df.data.dtypes))
@@ -257,9 +270,10 @@ print(df.data.dtypes)
 print(df.data)
 
 df_days = df.resample()
-df_days.compute_ma()
+#df_days.compute_ma()
 df_days.data['Close'].plot()
 plt.close()
+
 
 print("OHLCV File " + ohlcv_file)
 
