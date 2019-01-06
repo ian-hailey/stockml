@@ -1,5 +1,5 @@
-import data
-import buysell_signal
+import ohlcv
+import signals
 import matplotlib
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -9,6 +9,7 @@ import time
 import numpy as np
 import sys
 import getopt
+import db
 from matplotlib.dates import DateFormatter
 from multiprocessing import Pool, Lock
 from scipy.signal import argrelextrema
@@ -156,7 +157,7 @@ def signal_plot(day, close, ma5, buysell, preds, openIndex):
     ax2.plot(preds, color='green')
     plt.axhline(y=0.0, ls='--', color='grey')
     plt.axvline(x=openIndex, ls='--', color='grey')
-    filename = "wdc_buysell/wdc_pred_2016_{}.jpg".format(day.strftime('%Y-%m-%d'))
+    filename = "wdc_buysell/wdc_pred_2017_{}.jpg".format(day.strftime('%Y-%m-%d'))
     fig.savefig(filename)
     plt.close()
 
@@ -228,10 +229,11 @@ def signal_gains(df_day_s, day, stop=10, openThreshold=0.5, closeThreshold=0.0):
 print("Using:", matplotlib.get_backend())
 
 simulate_trades = False
-generate_buysell = True
+generate_signals = False
 
 ohlcv_file = None
 daterange = None
+sql_host = "localhost"
 
 try:
     opts, args = getopt.getopt(sys.argv[1:],"hp:o:d:",["preds=","ohlcv=", "daterange="])
@@ -242,6 +244,8 @@ for opt, arg in opts:
     if opt == '-h':
         print("model.py -o<ohlcv> -p<preds>")
         sys.exit()
+    elif opt == '-s':
+        sql_host = arg
     elif opt == '-o':
         ohlcv_file = arg
     elif opt == '-d':
@@ -249,18 +253,32 @@ for opt, arg in opts:
         if len(daterange) != 2:
             print("Error: datarange invalid")
             sys.exit(2)
+    elif opt == 'g':
+        generate_signals = True
     elif opt == '-p':
         preds_file = arg
         simulate_trades = True
-        generate_buysell = False
 
 if daterange is not None:
-    df = data.ohlcv_db("WDC", daterange)
+    dba = db.Db(host=sql_host)
+    df = dba.get_symbol_ohlcv("WDC", daterange)
+    df = ohlcv.ohlcv(df)
 elif ohlcv_file is not None:
-    df = data.ohlcv_csv(ohlcv_file)
+    dba = db.Db(host=sql_host)
+    dba.import_ohlcv_csv(ohlcv_file, "WDC")
+elif generate_signals is True:
+    pass
 else:
     print("Error: no data source specified")
     sys.exit(2)
+
+if generate_signals is True:
+    threads = 6
+    days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
+    days = days.normalize()
+    signal = signals.Signals()
+    signal = signal.from_df(df, days, stop=16, thread_count=threads)
+    signal.to_csv(ohlcv_file + ".zc")
 
 df.fill_gaps()
 
@@ -270,7 +288,7 @@ print(df.data.dtypes)
 print(df.data)
 
 df_days = df.resample()
-#df_days.compute_ma()
+df_days.compute_ma()
 df_days.data['Close'].plot()
 plt.close()
 
@@ -286,24 +304,27 @@ if simulate_trades is True:
     days = pd.date_range(preds.index[0], preds.index[-1], freq='1D')
     days = days.normalize()
     totalGain = 0
+    dayGains = []
     for i in range(days.size):
         dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=16), freq='S')
         df_day_s = df.daterange(dates_day_s)
         df_day_s.data = df_day_s.data.join(buysell)
         df_day_s.data = df_day_s.data.join(preds)
-    #    results = signal_day(df_day_s, days[i], 16, 'S')
-        totalGain = totalGain + signal_gains(df_day_s, days[i], 16)
+        results = signal_day(df_day_s, days[i], 16, 'S')
+        gain = signal_gains(df_day_s, days[i], 16)
+        dayGains.append(gain)
+        totalGain = totalGain + gain
     print("Total Gain={:.2f}%".format(totalGain * 100))
+    xs = np.arange(0, len(dayGains))
+    plt.bar(xs, dayGains)
+    plt.xlabel('day')
+    plt.ylabel('gains')
+    plt.savefig('gainbars.png')
+    plt.cla()
+    plt.hist(dayGains)
+    plt.xlabel('gains')
+    plt.ylabel('days')
+    plt.savefig('gainhist.png')
 
-if generate_buysell is True:
-    threads = 6
-    days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
-    days = days.normalize()
-    buysell = buysell_signal.signal()
-    signal = buysell.from_df(df, days, stop=16, thread_count=threads)
-    signal.to_csv(ohlcv_file + ".buysell")
-    #signals_from_df(df, days, stop=16, thread_count=threads)
-    #daily_plots(df, days, stop=16, signals=signal_results, thread_count=threads)
-    #signal_results.to_csv("wdc_ohlcv_1_year_signals.csv")
 
 pass

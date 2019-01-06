@@ -7,7 +7,7 @@ from matplotlib.ticker import FormatStrFormatter
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-class ohlcv(object):
+class Ohlcv(object):
     def __init__(self, data):
         self.data = data
 
@@ -119,7 +119,7 @@ class ohlcv(object):
         resample['Low'] = resample_low.values
         resample['Close'] = resample_close.values
         resample['Volume'] = resample_volume.values
-        resample_ohlcv = ohlcv(resample)
+        resample_ohlcv = Ohlcv(resample)
         if fillGaps:
             resample_ohlcv.fill_gaps()
         return resample_ohlcv
@@ -130,7 +130,7 @@ class ohlcv(object):
             range = range.join(self.data.ix[:,0:5])
         else:
             range = range.join(self.data)
-        range_ohlcv = ohlcv(range)
+        range_ohlcv = Ohlcv(range)
         if fillGaps:
             range_ohlcv.fill_gaps()
         return range_ohlcv
@@ -157,34 +157,10 @@ class ohlcv(object):
         self.data['stoch_k'], self.data['stoch_d'] = talib.STOCH(np.asarray(self.data['High']), np.asarray(self.data['Low']), np.asarray(self.data['Close']),
                                                                  fastk_period=fastk, slowk_period=slowk, slowk_matype=0, slowd_period=slowd, slowd_matype=0)
 
-class ohlcv_csv(ohlcv):
+class Ohlcv_csv(Ohlcv):
     def __init__(self, csvfile):
         self.csvfile = csvfile
         self.headers = ["Date", "Open", "High", "Low", "Close", "Volume"]
         data = pd.read_csv(self.csvfile, names=self.headers, header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
         super().__init__(data)
 
-class ohlcv_db(ohlcv):
-    def __init__(self, symbol, datetime):
-        try:
-            connection = psycopg2.connect(user="postgres",
-                                          password="",
-                                          host="127.0.0.1",
-                                          port="5432",
-                                          database="stock")
-            cursor = connection.cursor()
-            print(connection.get_dsn_parameters(), "\n")
-            cursor.execute("SELECT version();")
-            record = cursor.fetchone()
-            print("Connected to - {}".format(record))
-            select = "SELECT * from {} where (datetime BETWEEN '{}' AND '{}') ORDER BY datetime;".format(symbol, datetime[0], datetime[1])
-            cursor.execute(select)
-            data = pd.DataFrame(cursor.fetchall(), columns=["Date", "Open", "High", "Low", "Close", "Volume"])
-            data = data.set_index('Date')
-            super().__init__(data)
-        except (Exception, psycopg2.Error) as error:
-            print("Error while connecting to PostgreSQL {}".format(error))
-        finally:
-            if (connection):
-                cursor.close()
-                connection.close()

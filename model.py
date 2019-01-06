@@ -1,4 +1,4 @@
-import data
+import ohlcv
 import tresnet
 import time
 import pandas as pd
@@ -47,7 +47,7 @@ end_time = 16.0
 batch_size = 9000
 
 # load OHLCV
-df = data.ohlcv_csv(ohlcv_file)
+df = ohlcv.Ohlcv_csv(ohlcv_file)
 
 # Resample data to include all seconds
 df = df.resample(period='1s')

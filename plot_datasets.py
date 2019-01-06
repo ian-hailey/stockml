@@ -1,4 +1,4 @@
-import data
+import ohlcv
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -109,7 +109,7 @@ def save_plots(data):
 print("Using:", matplotlib.get_backend())
 
 # load OHLCV
-df = data.ohlcv_csv("../wdcdata/wdc_ohlcv_1_year_2016.csv")
+df = ohlcv.ohlcv_csv("../wdcdata/wdc_ohlcv_1_year_2016.csv")
 
 # resample data to include all seconds
 df = df.resample(period='1s')
