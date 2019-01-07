@@ -48,7 +48,7 @@ class Tick(object):
                     if df.iloc[0]["Low"] < ohlcv.iloc[-1]["Low"]:
                         ohlcv.loc[ohlcv.iloc[-1].name, "Low"] = df.iloc[0]["Low"]
                     ohlcv.loc[ohlcv.iloc[-1].name, "Close"] = df.iloc[0]["Close"]
-                    ohlcv.loc[ohlcv.iloc[-1].name, "Volume"] = ohlcv.iloc[-1]["Volume"] + df.iloc[0]["Volume"]
+                    ohlcv.loc[ohlcv.iloc[-1].name, "Volume"] = int(ohlcv.iloc[-1]["Volume"] + df.iloc[0]["Volume"])
                     df = df.drop(df.index[0])
                 ohlcv = ohlcv.append(df)
 #        pr.disable()

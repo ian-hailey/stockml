@@ -11,7 +11,6 @@ class Db(object):
         self.host = host
         self.database = database
         self.connection = None
-        self.cursor = None
         try:
             self.connection = psycopg2.connect(user=username,
                                           password="eE{9NyUw,}l?",
@@ -30,8 +29,6 @@ class Db(object):
 
     def __del__(self):
         if self.connection != None:
-            self.cursor.close()
-            self.cursor = None
             self.connection.close()
             self.connection = None
 
@@ -45,6 +42,8 @@ class Db(object):
         return exists
 
     def get_table_date_range(self, symbol):
+        startDate = None
+        endDate = None
         sql = "SELECT datetime FROM {} ORDER BY datetime ASC LIMIT 1".format(symbol)
         with self.connection.cursor() as cursor:
             cursor.execute(sql)
@@ -61,9 +60,15 @@ class Db(object):
         sql = "DROP TABLE IF EXISTS {} CASCADE;".format(symbol)
         with self.connection.cursor() as cursor:
             cursor.execute(sql)
+        self.connection.commit()
         sql = "DROP TABLE IF EXISTS {}_import CASCADE;".format(symbol)
         with self.connection.cursor() as cursor:
             cursor.execute(sql)
+        self.connection.commit()
+        sql = "DROP TABLE IF EXISTS {}_days CASCADE;".format(symbol)
+        with self.connection.cursor() as cursor:
+            cursor.execute(sql)
+        self.connection.commit()
         sql = "DROP TABLE IF EXISTS {}_signals CASCADE;".format(symbol)
         with self.connection.cursor() as cursor:
             cursor.execute(sql)
@@ -127,7 +132,7 @@ class Db(object):
         with self.connection.cursor() as cursor:
             cursor.copy_expert(sql, file=f_import)
         self.connection.commit()
-        sql = "INSERT INTO {} SELECT * FROM {}_import ON CONFLICT DO NOTHING;".format(symbol)
+        sql = "INSERT INTO {} SELECT * FROM {}_import ON CONFLICT DO NOTHING;".format(symbol, symbol)
         with self.connection.cursor() as cursor:
             cursor.execute(sql)
         sql = "DELETE FROM {}_import;".format(symbol)
@@ -164,6 +169,7 @@ class Db(object):
         with self.connection.cursor() as cursor:
             cursor.execute(sql)
             data = pd.DataFrame(cursor.fetchall(), columns=["Date", "Open", "High", "Low", "Close", "Volume"], dtype=np.float64)
+            data['Volume'] = data['Volume'].astype(int)
             data = data.set_index('Date')
         return data
 
