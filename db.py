@@ -159,16 +159,21 @@ class Db(object):
         table = "{}_days".format(symbol)
         self.insert_data_frame(df_days, table)
 
-    def get_symbol_ohlcv(self, symbol, daterange, resolution='secs'):
+    def get_symbol_ohlcv(self, symbol, daterange, num_days=None, resolution='secs'):
         data = None
         if resolution == 'secs':
             table = symbol
         else:
             table = "{}_days".format(symbol)
-        sql = "SELECT * FROM {} WHERE (datetime BETWEEN '{}' AND '{}') ORDER BY datetime;".format(table, daterange[0], daterange[1])
+        if num_days is None:
+            sql = "SELECT * FROM {} WHERE (datetime BETWEEN '{}' AND '{}') ORDER BY datetime;".format(table, daterange[0], daterange[1])
+        else:
+            sql = "SELECT * FROM {} WHERE datetime < '{}' ORDER BY datetime DESC LIMIT {};".format(table, daterange[0], num_days)
         with self.connection.cursor() as cursor:
             cursor.execute(sql)
             data = pd.DataFrame(cursor.fetchall(), columns=["Date", "Open", "High", "Low", "Close", "Volume"], dtype=np.float64)
+            if num_days is not None:
+                data = data.iloc[::-1]
             data['Volume'] = data['Volume'].astype(int)
             data = data.set_index('Date')
         return data

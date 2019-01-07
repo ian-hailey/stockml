@@ -6,7 +6,7 @@ import numpy as np
 import sys
 import getopt
 import os
-from datasets import dataset
+from datasets import Dataset
 from data_generator import data_generator
 from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping, ModelCheckpoint
 from sklearn.model_selection import train_test_split
@@ -64,7 +64,7 @@ print(df.data.dtypes)
 print(df.data)
 
 # Create dataset instance
-data = dataset(df, hist_days=hist_days, hist_mins=hist_mins, hist_secs=hist_secs)
+data = Dataset(df, hist_days=hist_days, hist_mins=hist_mins, hist_secs=hist_secs)
 data.select_day(dayIndex=0)
 day_range = data.get_date_range()
 day_size = data.get_day_size()

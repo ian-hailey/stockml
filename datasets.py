@@ -1,17 +1,22 @@
+import ohlcv
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import time
 import mpu.ml as ml
 
-class dataset_day(object):
-    def __init__(self, data, day, start, stop):
+class Dataset_day(object):
+    def __init__(self, day, time_active, symbol):
         self.day = day
         self.date_month = int(day.strftime('%m'))
         self.date_day = int(day.strftime('%d'))
         self.date_wday = day.weekday()
-        dates_day_s = pd.date_range(self.day + pd.DateOffset(hours=start), self.day + pd.DateOffset(hours=stop), freq='S')
-        self.data_s = data.daterange(dates_day_s, ohlcvOnly=False)
+        dates_day_s = pd.date_range(self.day + pd.DateOffset(hours=time_active[0]), self.day + pd.DateOffset(hours=time_active[1]), freq='S')
+        self.data_s = symbol.db.get_symbol_ohlcv(symbol.symbol, [day, day + pd.DateOffset(days=1)])
+        self.data_s = ohlcv.Ohlcv(self.data_s)
+        self.data_s = self.data_s.resample(period='1s')
+        self.data_s = self.data_s.daterange(dates_day_s)
+        self.data_s = self.data_s.daterange(dates_day_s, ohlcvOnly=False)
         self.data_m = self.data_s.resample(period='60s')
         self.day_open_s = self.data_s.data.index.get_loc(day.strftime('%Y-%m-%d') + ' 09:30:00')
         self.open = self.data_s.data.values[self.day_open_s][0]
@@ -21,39 +26,29 @@ class dataset_day(object):
         self.data_m_values = self.data_m.data.values
         pass
 
-class dataset(object):
-    def __init__(self, df, hist_days=240, hist_mins=240, hist_secs=60, start=4.0, stop=16.0):
+class Dataset(object):
+    def __init__(self, symbol, end_date, num_days, hist_conf=(240, 240, 60), time_active=(4.0, 16.0)):
         self.error = False
-        self.data = df
+        self.symbol = symbol
         self.day_index = 0
         self.sec_index = 0
-        self.hist_days = hist_days
-        self.hist_mins = hist_mins
-        self.hist_secs = hist_secs
-        self.day_data = []
+        self.hist_days, self.hist_mins, self.hist_secs = hist_conf
         self.feature_size = 5 # OHLCV
         self.external_size = 439 # month 12, day 31, week day 5, minute 391 (9:30 - 16:00)
-        df_days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
-        df_days = df_days.normalize()
-        if df_days.size > self.hist_days:
-            self.days = pd.date_range(df_days[0] + self.hist_days, df_days[-1], freq='1D')
-            self.days = self.days.normalize()
-            self.data_d = self.data.resample(period='1d')
-            self.data_d_values = self.data_d.data.values
-            for day in range(self.days.size):
-                self.day_data.append(dataset_day(self.data, self.days[day], start, stop))
+        self.day_data = []
+        self.data_d = self.symbol.db.get_symbol_ohlcv(self.symbol.symbol, [end_date + pd.DateOffset(days=1)], num_days+self.hist_days, resolution='days')
+        if self.data_d.shape[0] == self.hist_days + num_days:
+            self.data_d_values = self.data_d.values
+            for day_index in range(num_days):
+                self.day_data.append(Dataset_day(self.data_d.iloc[day_index+self.hist_days].name, time_active, self.symbol))
         else:
             self.error = True
 
-    def set_date_range(self, begin, end):
-        self.days = pd.date_range(self.days[begin] + self.hist_days, self.days[end], freq='1D')
-        self.days = self.days.normalize()
-
     def get_date_range(self):
-        return self.days[0], self.days[-1]
+        return self.day_data[0].day, self.day_data[-1].day
 
     def get_day_size(self):
-        return self.days.size
+        return self.day_data.__len__()
 
     def reset_day_index(self):
         self.day_index = 0
@@ -63,14 +58,14 @@ class dataset(object):
 
     def select_day(self, dayDate=None, dayIndex=None):
         error = False
-        if dayDate is None and self.day_index < self.days.size:
-            self.day = self.days[self.day_index]
+        if dayDate is None and self.day_index < self.hist_days:
+            self.day = self.day_data[self.day_index].day
         elif dayIndex is not None:
             self.day_index = dayIndex
-            self.day = self.days[self.day_index]
+            self.day = self.day_data[self.day_index].day
         else:
             self.day_index = self.days.get_loc(dayDate)
-            self.day = self.days[self.day_index]
+            self.day = self.day_data[self.day_index].day
         if self.day is None:
             error = True
         else:
@@ -98,7 +93,7 @@ class dataset(object):
             y_state = None
         minute_index = int(sec_index / 60)
         # d - last 240 days
-        x_state.append(self.data_d_values[day_index:day_index+self.hist_days, :] / self.day_data[day_index].open)
+        x_state.append(self.data_d_values[day_index+self.hist_days:day_index, :] / self.day_data[day_index].open)
         # m - last 240 minutes
         x_state.append(self.day_data[day_index].data_m_values[minute_index - self.hist_mins:minute_index, :])
         # s - last 60 seconds
