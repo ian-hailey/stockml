@@ -8,7 +8,7 @@ from keras.layers import (
     Dense,
     Flatten,
     concatenate,
-    merge
+    add
 )
 from keras.layers.convolutional import (
     Conv1D, Conv2D,
@@ -267,7 +267,7 @@ class TResnetBuilder(object):
             embedding = Activation('relu')(embedding)
             h1 = Dense(output_dim=len(input_shapes)*len(repetitions)*64*2)(embedding)
             external_output = Activation('relu')(h1)
-            main_output = merge([main_output, external_output], mode='sum')
+            main_output = add([main_output, external_output])
 
         main_output = Dense(units=num_outputs, kernel_initializer="he_normal",
                             activation="linear")(main_output)
