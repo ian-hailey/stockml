@@ -1,3 +1,5 @@
+import db
+import symbols
 import ohlcv
 import tresnet
 import time
@@ -12,29 +14,28 @@ from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping, ModelCh
 from sklearn.model_selection import train_test_split
 
 # files
-ohlcv_file = "../wdcdata/wdc_ohlcv_1_year.csv"
+symbol_name = None
 saved_model = None
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"hp:o:",["saved_model="])
+    opts, args = getopt.getopt(sys.argv[1:],"hp:s:",["saved_model="])
 except getopt.GetoptError:
     print('model.py -p<weights>')
     sys.exit(2)
 for opt, arg in opts:
     if opt == '-h':
-        print("model.py -o<ohlcv> -p<weights>")
+        print("model.py -s<symbol> -p<weights>")
         sys.exit()
-    elif opt == '-o':
-        ohlcv_file = arg
+    elif opt == '-s':
+        symbol_name = arg
     elif opt == '-p':
         saved_model = arg
 
 if saved_model != None:
-    print("Prediction Mode: Input file is {}".format(saved_model))
+    print("Prediction Mode: for {} model {}".format(symbol_name, saved_model))
     train = False
 else:
-    buysell_file = ohlcv_file + ".buysell"
-    print("Training Mode ohlcv file is {}".format(ohlcv_file))
+    print("Training Mode for {}".format(symbol_name))
     train = True
 
 # Setup the dataset generator params
@@ -46,29 +47,15 @@ start_time = 9.5
 end_time = 16.0
 batch_size = 9000
 
-# load OHLCV
-df = ohlcv.Ohlcv_csv(ohlcv_file)
-
-# Resample data to include all seconds
-df = df.resample(period='1s')
-
-if train is True:
-    # load buysell data
-    buysell = pd.read_csv(buysell_file, header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
-    # merge the two
-    df.data = df.data.join(buysell)
-
-print("loaded data types:\n" + str(df.data.dtypes))
-print(df.data.index)
-print(df.data.dtypes)
-print(df.data)
+# Connect to DB
+dba = db.Db(host='192.168.88.1')
+symbol = symbols.Symbol(dba, symbol_name)
 
 # Create dataset instance
-data = Dataset(df, hist_days=hist_days, hist_mins=hist_mins, hist_secs=hist_secs)
+data = Dataset(symbol=symbol, end_date=pd.to_datetime('2018-12-31'), num_days=60, hist_conf=(hist_days, hist_mins, hist_secs))
 data.select_day(dayIndex=0)
 day_range = data.get_date_range()
 day_size = data.get_day_size()
-data_days = data.data.resample()
 feature_planes = data.get_feature_size()
 external_size = data.get_external_size()
 
@@ -76,18 +63,12 @@ print(day_range)
 print("daysize={} daysecs={}".format(day_size, data.get_seconds_remain()))
 
 datetime_index = np.empty((day_size*(int((end_time-start_time)*3600)+1), 2), dtype=int)
-datetime_df = pd.DataFrame()
+secs = np.arange(start=int((start_time - pre_time) * 3600), stop=int((end_time - pre_time) * 3600) + 1)
 id_index = 0
 for day in range(day_size):
-    if data_days.data['Volume'][day_range[0] + pd.DateOffset(days=day)] != 0.0:
-        datetime_day = pd.date_range(day_range[0] + pd.DateOffset(days=day) + pd.DateOffset(hours=start_time),
-                                     day_range[0] + pd.DateOffset(days=day) + pd.DateOffset(hours=end_time), freq='S')
-        datetime_day_df = pd.DataFrame(index=datetime_day)
-        datetime_df = pd.concat([datetime_df, datetime_day_df])
-        for sec in range(int((end_time-start_time) * 3600)+1):
-            datetime_index[id_index] = (day, int((start_time - pre_time) * 3600) + sec)
-            id_index = id_index + 1
-datetime_index = np.resize(datetime_index, (id_index, 2))
+    datetime_index[id_index:id_index + secs.__len__(), 0] = day
+    datetime_index[id_index:id_index + secs.__len__(), 1] = secs
+    id_index = id_index + secs.__len__()
 datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20)
 
 # build the resnet model
@@ -108,7 +89,7 @@ if train:
     csv_logger = CSVLogger('tresnet18_wdc.csv')
 
     # create folder for weights
-    subfolder = os.path.splitext(os.path.basename(ohlcv_file))[0]
+    subfolder = os.path.splitext(os.path.basename(data.get_id()))[0]
     if not os.path.exists(subfolder):
         os.makedirs(subfolder)
 
@@ -134,6 +115,7 @@ else:
     results = model.predict_generator(generator=predict_generator, steps=int(np.ceil(len(datetime_index) / batch_size)), verbose=1, max_q_size=10)
     print(results)
     resultsall = results[:datetime_index.shape[0]]
+    datetime_df = pd.DataFrame()
     datetime_df['preds'] = resultsall
-    datetime_df.to_csv(ohlcv_file + ".preds")
+    datetime_df.to_csv(data.get_id() + ".preds")
 pass

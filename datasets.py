@@ -12,6 +12,9 @@ class Dataset_day(object):
         self.date_day = int(day.strftime('%d'))
         self.date_wday = day.weekday()
         dates_day_s = pd.date_range(self.day + pd.DateOffset(hours=time_active[0]), self.day + pd.DateOffset(hours=time_active[1]), freq='S')
+        self.signal = symbol.db.get_symbol_signals(symbol.symbol, [day, day + pd.DateOffset(days=1)])
+        self.signal_values = self.signal.values
+        self.signal_values = self.signal_values.reshape(self.signal_values.shape[0], )
         self.data_s = symbol.db.get_symbol_ohlcv(symbol.symbol, [day, day + pd.DateOffset(days=1)])
         self.data_s = ohlcv.Ohlcv(self.data_s)
         self.data_s = self.data_s.resample(period='1s')
@@ -35,12 +38,13 @@ class Dataset(object):
         self.hist_days, self.hist_mins, self.hist_secs = hist_conf
         self.feature_size = 5 # OHLCV
         self.external_size = 439 # month 12, day 31, week day 5, minute 391 (9:30 - 16:00)
+        self.id = "{}_{}_{}d_{}hd_{}hm_{}hs".format(symbol.symbol, end_date.strftime('%Y_%m_%d'), num_days, hist_conf[0], hist_conf[1], hist_conf[2])
         self.day_data = []
-        self.data_d = self.symbol.db.get_symbol_ohlcv(self.symbol.symbol, [end_date + pd.DateOffset(days=1)], num_days+self.hist_days, resolution='days')
-        if self.data_d.shape[0] == self.hist_days + num_days:
+        self.data_d = self.symbol.db.get_symbol_ohlcv(self.symbol.symbol, [end_date + pd.DateOffset(days=1)], num_days+self.hist_days+1, resolution='days')
+        if self.data_d.shape[0] == self.hist_days + num_days + 1:
             self.data_d_values = self.data_d.values
             for day_index in range(num_days):
-                self.day_data.append(Dataset_day(self.data_d.iloc[day_index+self.hist_days].name, time_active, self.symbol))
+                self.day_data.append(Dataset_day(self.data_d.iloc[day_index+self.hist_days+1].name, time_active, self.symbol))
         else:
             self.error = True
 
@@ -81,6 +85,9 @@ class Dataset(object):
     def get_external_size(self):
         return self.external_size
 
+    def get_id(self):
+        return self.id
+
     def get_second(self, day_index, sec_index, train=True):
 #        print("day={} sec={} month={} day={} wday={}".format(day_index, sec_index,
 #                                                             self.day_data[day_index].date_month,
@@ -88,12 +95,12 @@ class Dataset(object):
 #                                                             self.day_data[day_index].date_wday))
         x_state = []
         if train:
-            y_state = self.day_data[day_index].data_s_values[sec_index][5]
+            y_state = self.day_data[day_index].signal_values[sec_index]
         else:
             y_state = None
         minute_index = int(sec_index / 60)
         # d - last 240 days
-        x_state.append(self.data_d_values[day_index+self.hist_days:day_index, :] / self.day_data[day_index].open)
+        x_state.append(self.data_d_values[day_index:day_index+self.hist_days, :] / self.day_data[day_index].open)
         # m - last 240 minutes
         x_state.append(self.day_data[day_index].data_m_values[minute_index - self.hist_mins:minute_index, :])
         # s - last 60 seconds
