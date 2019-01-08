@@ -19,7 +19,7 @@ saved_model = None
 batch_size = 2000
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"hp:s:",["saved_model="])
+    opts, args = getopt.getopt(sys.argv[1:],"hp:s:b:",["saved_model="])
 except getopt.GetoptError:
     print('model.py -p<weights>')
     sys.exit(2)
