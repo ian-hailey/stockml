@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 # files
 symbol_name = None
 saved_model = None
+batch_size = 2000
 
 try:
     opts, args = getopt.getopt(sys.argv[1:],"hp:s:",["saved_model="])
@@ -30,12 +31,14 @@ for opt, arg in opts:
         symbol_name = arg
     elif opt == '-p':
         saved_model = arg
+    elif opt == '-b':
+        batch_size = int(arg)
 
 if saved_model != None:
-    print("Prediction Mode: for {} model {}".format(symbol_name, saved_model))
+    print("Prediction Mode: for {} model {} batch_size={}".format(symbol_name, saved_model, batch_size))
     train = False
 else:
-    print("Training Mode for {}".format(symbol_name))
+    print("Training Mode for {} batch_size={}".format(symbol_name, batch_size))
     train = True
 
 # Setup the dataset generator params
@@ -45,7 +48,6 @@ hist_secs=60
 pre_time = 4.0
 start_time = 9.5
 end_time = 16.0
-batch_size = 9000
 
 # Connect to DB
 dba = db.Db(host='192.168.88.1')
