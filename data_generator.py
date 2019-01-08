@@ -14,12 +14,18 @@ class data_generator(keras.utils.Sequence):
 
     def __len__(self):
         'Denotes the number of batches per epoch'
-        return int(np.floor(len(self.date_index) / self.batch_size))
+        return int(np.ceil(len(self.date_index) / self.batch_size))
 
     def __getitem__(self, index):
         'Generate one batch of data'
         # Generate date_index of the batch
         batch_index = self.date_index[index*self.batch_size:(index+1)*self.batch_size]
+        batch_remain = self.batch_size - len(batch_index)
+        if batch_remain is not 0:
+            batch_index_a = batch_index
+            batch_index = np.empty([self.batch_size, 2], dtype=np.int)
+            batch_index[0:len(batch_index_a), ] = batch_index_a
+            batch_index[len(batch_index_a):len(batch_index_a) + batch_remain, ] = self.date_index[0:batch_remain]
 
         # Generate data
         X, y = self.__data_generation(batch_index, self.train)
