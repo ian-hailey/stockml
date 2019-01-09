@@ -48,6 +48,15 @@ class Dataset(object):
         else:
             self.error = True
 
+    def get_index(self):
+        index = None
+        for day in self.day_data:
+            if index is None:
+                index = day.data_s.data.index
+            else:
+                index = index.append(day.data_s.data.index)
+        return index
+
     def get_date_range(self):
         return self.day_data[0].day, self.day_data[-1].day
 
@@ -72,8 +81,7 @@ class Dataset(object):
             self.day = self.day_data[self.day_index].day
         if self.day is None:
             error = True
-        else:
-            self.sec_index = self.day_data[self.day_index].day_open_s
+        self.sec_index = 0
         return error
 
     def get_seconds_remain(self):
@@ -94,6 +102,7 @@ class Dataset(object):
 #                                                             self.day_data[day_index].date_day,
 #                                                             self.day_data[day_index].date_wday))
         x_state = []
+        sec_index = self.day_data[self.day_index].day_open_s + sec_index
         if train:
             y_state = self.day_data[day_index].signal_values[sec_index]
         else:

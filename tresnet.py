@@ -263,9 +263,9 @@ class TResnetBuilder(object):
         if external_shape != None and external_shape > 0:
             external_input = Input(shape=(external_shape,))
             main_inputs.append(external_input)
-            embedding = Dense(output_dim=min(50, external_shape))(external_input)
+            embedding = Dense(units=min(50, external_shape))(external_input)
             embedding = Activation('relu')(embedding)
-            h1 = Dense(output_dim=len(input_shapes)*len(repetitions)*64*2)(embedding)
+            h1 = Dense(units=len(input_shapes)*len(repetitions)*64*2)(embedding)
             external_output = Activation('relu')(h1)
             main_output = add([main_output, external_output])
 

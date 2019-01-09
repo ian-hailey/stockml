@@ -54,7 +54,7 @@ dba = db.Db(host='192.168.88.1')
 symbol = symbols.Symbol(dba, symbol_name)
 
 # Create dataset instance
-data = Dataset(symbol=symbol, end_date=pd.to_datetime('2018-12-31'), num_days=60, hist_conf=(hist_days, hist_mins, hist_secs))
+data = Dataset(symbol=symbol, end_date=pd.to_datetime('2018-12-31'), num_days=2, hist_conf=(hist_days, hist_mins, hist_secs))
 data.select_day(dayIndex=0)
 day_range = data.get_date_range()
 day_size = data.get_day_size()
@@ -65,7 +65,7 @@ print(day_range)
 print("daysize={} daysecs={}".format(day_size, data.get_seconds_remain()))
 
 datetime_index = np.empty((day_size*(int((end_time-start_time)*3600)+1), 2), dtype=int)
-secs = np.arange(start=int((start_time - pre_time) * 3600), stop=int((end_time - pre_time) * 3600) + 1)
+secs = np.arange(start=int(start_time * 3600), stop=int(end_time * 3600) + 1)
 id_index = 0
 for day in range(day_size):
     datetime_index[id_index:id_index + secs.__len__(), 0] = day
@@ -116,8 +116,9 @@ else:
     # predict from dataset
     results = model.predict_generator(generator=predict_generator, steps=int(np.ceil(len(datetime_index) / batch_size)), verbose=1, max_q_size=10)
     print(results)
+    dateindex = data.get_index()
     resultsall = results[:datetime_index.shape[0]]
-    datetime_df = pd.DataFrame()
+    datetime_df = pd.DataFrame(dateindex)
     datetime_df['preds'] = resultsall
     datetime_df.to_csv(data.get_id() + ".preds")
 pass
