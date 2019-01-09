@@ -65,7 +65,7 @@ print(day_range)
 print("daysize={} daysecs={}".format(day_size, data.get_seconds_remain()))
 
 datetime_index = np.empty((day_size*(int((end_time-start_time)*3600)+1), 2), dtype=int)
-secs = np.arange(start=int(start_time * 3600), stop=int(end_time * 3600) + 1)
+secs = np.arange(int((end_time - start_time) * 3600) + 1)
 id_index = 0
 for day in range(day_size):
     datetime_index[id_index:id_index + secs.__len__(), 0] = day
