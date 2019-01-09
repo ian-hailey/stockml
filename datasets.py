@@ -48,13 +48,17 @@ class Dataset(object):
         else:
             self.error = True
 
-    def get_index(self):
+    def get_index(self, day_start_time, day_end_time):
         index = None
+        day_open_time = pd.to_datetime('09:30:00')
+        day_start_s = int((day_start_time - day_open_time).total_seconds())
+        day_end_s = int((day_end_time - day_open_time).total_seconds()) + 1
         for day in self.day_data:
+            day_open_s = self.day_data[self.day_index].day_open_s
             if index is None:
-                index = day.data_s.data.index
+                index = day.data_s.data.index[day_open_s+day_start_s:day_open_s+day_end_s]
             else:
-                index = index.append(day.data_s.data.index)
+                index = index.append(day.data_s.data.index[day_open_s+day_start_s:day_open_s+day_end_s])
         return index
 
     def get_date_range(self):

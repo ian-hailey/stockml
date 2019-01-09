@@ -45,9 +45,9 @@ else:
 hist_days=240
 hist_mins=240
 hist_secs=60
-pre_time = 4.0
-start_time = 9.5
-end_time = 16.0
+pre_time = pd.to_datetime('04:00:00')
+start_time = pd.to_datetime('09:30:00')
+end_time = pd.to_datetime('16:00:00')
 
 # Connect to DB
 dba = db.Db(host='192.168.88.1')
@@ -64,8 +64,9 @@ external_size = data.get_external_size()
 print(day_range)
 print("daysize={} daysecs={}".format(day_size, data.get_seconds_remain()))
 
-datetime_index = np.empty((day_size*(int((end_time-start_time)*3600)+1), 2), dtype=int)
-secs = np.arange(int((end_time - start_time) * 3600) + 1)
+day_secs = int((end_time-start_time).total_seconds())+1
+datetime_index = np.empty((day_size*day_secs, 2), dtype=int)
+secs = np.arange(day_secs)
 id_index = 0
 for day in range(day_size):
     datetime_index[id_index:id_index + secs.__len__(), 0] = day
@@ -116,9 +117,11 @@ else:
     # predict from dataset
     results = model.predict_generator(generator=predict_generator, steps=int(np.ceil(len(datetime_index) / batch_size)), verbose=1, max_q_size=10)
     print(results)
-    dateindex = data.get_index()
+    dateindex = data.get_index(start_time, end_time)
     resultsall = results[:datetime_index.shape[0]]
-    datetime_df = pd.DataFrame(dateindex)
-    datetime_df['preds'] = resultsall
+    datetime_df = pd.DataFrame(index=dateindex)
+    datetime_df.index.name = 'datetime'
+
+    datetime_df['zc'] = resultsall
     datetime_df.to_csv(data.get_id() + ".preds")
 pass
