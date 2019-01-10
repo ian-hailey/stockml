@@ -64,7 +64,7 @@ dba = db.Db(host='192.168.88.1')
 symbol = symbols.Symbol(dba, symbol_name)
 
 # Create dataset instance
-data = Dataset(symbol=symbol, end_date=pd.to_datetime('2018-12-31'), num_days=num_days, hist_conf=(hist_days, hist_mins, hist_secs))
+data = Dataset(symbol=symbol, end_date=pd.to_datetime(end_date), num_days=num_days, hist_conf=(hist_days, hist_mins, hist_secs))
 data.select_day(day_index=0)
 day_range = data.get_date_range()
 day_size = data.get_day_size()
