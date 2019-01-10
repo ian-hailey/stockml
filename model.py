@@ -10,7 +10,7 @@ import getopt
 import os
 from datasets import Dataset
 from data_generator import data_generator
-from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping, ModelCheckpoint
+from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping, ModelCheckpoint, TensorBoard
 from sklearn.model_selection import train_test_split
 
 # files
@@ -99,7 +99,9 @@ if train:
     lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1), cooldown=0, patience=5, min_lr=0.5e-6)
     early_stopper = EarlyStopping(min_delta=0.001, patience=10)
     csv_logger = CSVLogger('tresnet18_wdc.csv')
-
+    # tensorboard callback
+    tensorboard = TensorBoard(log_dir='./graph', histogram_freq=0,
+                              write_graph=True, write_images=True)
     # create folder for weights
     subfolder = os.path.splitext(os.path.basename(data.get_id()))[0]
     if not os.path.exists(subfolder):
@@ -110,14 +112,16 @@ if train:
     checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=False, mode='min')
 
     # train model on dataset
-    model.fit_generator(generator=training_generator,
+    history = model.fit_generator(generator=training_generator,
                         steps_per_epoch=len(datetime_index_train) // batch_size,
                         validation_data=validation_generator,
                         validation_steps=len(datetime_index_validate) // batch_size,
     #                    use_multiprocessing=True,
     #                    workers=6,
                         epochs=10, verbose=1, max_q_size=10,
-                        callbacks = [lr_reducer, early_stopper, csv_logger, checkpoint])
+                        callbacks = [lr_reducer, early_stopper, csv_logger, checkpoint, tensorboard])
+    print(history)
+    pass
 else:
     # data generator
     predict_generator = data_generator(datetime_index, data, batch_size=batch_size, shuffle=False, train=False)
@@ -133,4 +137,4 @@ else:
 
     datetime_df['zc'] = resultsall
     datetime_df.to_csv(data.get_id() + ".preds")
-pass
+    pass
