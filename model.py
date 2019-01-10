@@ -63,7 +63,6 @@ end_time = pd.to_datetime('16:00:00')
 dba = db.Db(host='192.168.88.1')
 symbol = symbols.Symbol(dba, symbol_name)
 
-# Create dataset instance
 data = Dataset(symbol=symbol, end_date=pd.to_datetime(end_date), num_days=num_days, hist_conf=(hist_days, hist_mins, hist_secs))
 data.select_day(day_index=0)
 day_range = data.get_date_range()
@@ -82,7 +81,7 @@ for day in range(day_size):
     datetime_index[id_index:id_index + secs.__len__(), 0] = day
     datetime_index[id_index:id_index + secs.__len__(), 1] = secs
     id_index = id_index + secs.__len__()
-datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20)
+datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20, shuffle=False)
 
 # build the resnet model
 model = tresnet.TResnetBuilder.build_tresnet_18([(feature_planes, hist_days),
