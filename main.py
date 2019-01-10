@@ -1,5 +1,6 @@
 import ohlcv
 import signals
+import symbols
 import matplotlib
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -13,6 +14,7 @@ import db
 from matplotlib.dates import DateFormatter
 from multiprocessing import Pool, Lock
 from scipy.signal import argrelextrema
+from datasets import Dataset
 
 def plot_signal_lines(ax, signals, line_width):
     if signals is not None:
@@ -190,33 +192,33 @@ def signal_day(df_day_s, day, stop=10, resolution='M'):
         print("{} pre_close={} pre_vol={}".format(day.strftime('%Y-%m-%d'), df_pre_close, df_pre_vol))
         signal_plot(day, df_open.data['Close'].values, df_open.data['ma5'].values, df_open.data['buysell'].values, df_open.data['preds'].values, openIndex)
 
-def signal_gains(df_day_s, day, stop=10, openThreshold=0.5, closeThreshold=0.0):
+def signal_gains(df_day, day, stop=10, openThreshold=0.5, closeThreshold=0.0):
     print("Day {} ".format(day.strftime('%Y-%m-%d')))
     dates_open_s = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='S')
-    df_open_s = df_day_s.daterange(dates_open_s, ohlcvOnly=False)
+    df_open_s = df_day.daterange(dates_open_s, ohlcvOnly=False)
     spIn = 0
     timeIn = None
-    predsIn = 0
+    predIn = 0
     totalGain = 0
     for row in df_open_s.data.itertuples():
-        if np.isnan(row.preds) == False:
+        if np.isnan(row.pred) == False:
             if spIn == 0:
-                if abs(row.preds) > openThreshold:
+                if abs(row.pred) > openThreshold:
                     spIn = row.Open
                     timeIn = row.Index
-                    predsIn = row.preds
+                    predIn = row.pred
             else:
                 spOut = row.Open
                 timeOut = row.Index
-                predsOut = row.preds
+                predOut = row.pred
                 gain = (spOut / spIn) - 1.0
-                if predsIn > 0 and predsOut <= closeThreshold:
+                if predIn > 0 and predOut <= closeThreshold:
                     totalGain = totalGain + gain
                     print("  Long  Trade In {} SP={:.2f} - Out {} SP={:.2f} Gain={:.2f}%".format(timeIn.strftime('%H:%M:%S'), spIn,
                                                                                         timeOut.strftime('%H:%M:%S'), spOut,
                                                                                         gain*100))
                     spIn = 0
-                elif predsIn < 0 and predsOut >= closeThreshold:
+                elif predIn < 0 and predOut >= closeThreshold:
                     totalGain = totalGain - gain
                     print("  Short Trade In {} SP={:.2f} - Out {} SP={:.2f} Gain={:.2f}%".format(timeIn.strftime('%H:%M:%S'), spIn,
                                                                                                 timeOut.strftime('%H:%M:%S'), spOut,
@@ -228,103 +230,64 @@ def signal_gains(df_day_s, day, stop=10, openThreshold=0.5, closeThreshold=0.0):
 
 print("Using:", matplotlib.get_backend())
 
-simulate_trades = False
-generate_signals = False
-
-ohlcv_file = None
-daterange = None
-sql_host = "localhost"
+enddate = None
+num_days = 0
+symbol = None
+sql_host = "192.168.88.1"
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"hp:o:d:",["preds=","ohlcv=", "daterange="])
+    opts, args = getopt.getopt(sys.argv[1:],"hp:s:e:d:",["preds=","symbol=", "enddate=", "days="])
 except getopt.GetoptError:
-    print('model.py -p<weights> -o<ohlcv.csv> -d<2017-01-01,2017-06-30>')
+    print('model.py -p<weights> -s<symbol> -e<end date> -c<number of days>')
     sys.exit(2)
 for opt, arg in opts:
     if opt == '-h':
-        print("model.py -o<ohlcv> -p<preds>")
+        print("model.py -p<weights> -s<symbol> -e<end date> -c<number of days>")
         sys.exit()
     elif opt == '-s':
-        sql_host = arg
-    elif opt == '-o':
-        ohlcv_file = arg
+        symbol = arg
+    elif opt == '-e':
+        end_date = pd.to_datetime(arg)
     elif opt == '-d':
-        daterange = arg.split(',')
-        if len(daterange) != 2:
-            print("Error: datarange invalid")
-            sys.exit(2)
-    elif opt == 'g':
-        generate_signals = True
+        num_days = int(arg)
     elif opt == '-p':
         preds_file = arg
-        simulate_trades = True
 
-if daterange is not None:
+if end_date is not None and symbol is not None and num_days is not 0:
     dba = db.Db(host=sql_host)
-    df = dba.get_symbol_ohlcv("WDC", daterange)
-    df = ohlcv.ohlcv(df)
-elif ohlcv_file is not None:
-    dba = db.Db(host=sql_host)
-    dba.import_ohlcv_csv(ohlcv_file, "WDC")
-elif generate_signals is True:
-    pass
+    symbol = symbols.Symbol(dba, 'WDC', autocreate=True)
+    data = Dataset(symbol=symbol, end_date=pd.to_datetime(end_date), num_days=num_days, normalise=False)
+    data.select_day(day_index=0)
+    day_range = data.get_date_range()
+    day_size = data.get_day_size()
 else:
-    print("Error: no data source specified")
+    print("Error: command line args")
     sys.exit(2)
 
-if generate_signals is True:
-    threads = 6
-    days = pd.date_range(df.data.index[0], df.data.index[-1], freq='1D')
-    days = days.normalize()
-    signal = signals.Signals()
-    signal = signal.from_df(df, days, stop=16, thread_count=threads)
-    signal.to_csv(ohlcv_file + ".zc")
+print("Pediction File " + preds_file)
+preds = pd.read_csv(preds_file, header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
 
-df.fill_gaps()
-
-print("loaded data types:\n" + str(df.data.dtypes))
-print(df.data.index)
-print(df.data.dtypes)
-print(df.data)
-
-df_days = df.resample()
-df_days.compute_ma()
-df_days.data['Close'].plot()
-plt.close()
-
-
-print("OHLCV File " + ohlcv_file)
-
-if simulate_trades is True:
-    print("Pediction File " + preds_file)
-    preds = pd.read_csv(preds_file, header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
-    print("BuySell File " + ohlcv_file + ".buysell")
-    buysell = pd.read_csv(ohlcv_file + ".buysell", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
-
-    days = pd.date_range(preds.index[0], preds.index[-1], freq='1D')
-    days = days.normalize()
-    totalGain = 0
-    dayGains = []
-    for i in range(days.size):
-        dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=16), freq='S')
-        df_day_s = df.daterange(dates_day_s)
-        df_day_s.data = df_day_s.data.join(buysell)
-        df_day_s.data = df_day_s.data.join(preds)
-        results = signal_day(df_day_s, days[i], 16, 'S')
-        gain = signal_gains(df_day_s, days[i], 16)
-        dayGains.append(gain)
-        totalGain = totalGain + gain
-    print("Total Gain={:.2f}%".format(totalGain * 100))
-    xs = np.arange(0, len(dayGains))
-    plt.bar(xs, dayGains)
-    plt.xlabel('day')
-    plt.ylabel('gains')
-    plt.savefig('gainbars.png')
-    plt.cla()
-    plt.hist(dayGains)
-    plt.xlabel('gains')
-    plt.ylabel('days')
-    plt.savefig('gainhist.png')
+totalGain = 0
+dayGains = []
+for day_index in range(day_size):
+    day_date = data.day_data[day_index].day.strftime('%Y-%m-%d')
+    df_day = data.get_day(day_index=day_index)
+    df_day.data['pred'] = preds[day_date]
+    df_day.data['pred'] = df_day.data['pred'].fillna(0)
+    gain = signal_gains(df_day, data.day_data[day_index].day, 16)
+    dayGains.append(gain)
+    totalGain = totalGain + gain
+print("Total Gain={:.2f}%".format(totalGain * 100))
+xs = np.arange(0, len(dayGains))
+plt.bar(xs, dayGains)
+plt.xlabel('day')
+plt.ylabel('gains')
+plt.savefig('gainbars.png')
+plt.cla()
+plt.hist(dayGains)
+plt.xlabel('gains')
+plt.ylabel('days')
+plt.savefig('gainhist.png')
 
 
 pass

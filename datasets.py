@@ -6,7 +6,7 @@ import time
 import mpu.ml as ml
 
 class Dataset_day(object):
-    def __init__(self, day, time_active, symbol):
+    def __init__(self, day, time_active, symbol, normalise):
         self.day = day
         self.date_month = int(day.strftime('%m'))
         self.date_day = int(day.strftime('%d'))
@@ -23,14 +23,15 @@ class Dataset_day(object):
         self.data_m = self.data_s.resample(period='60s')
         self.day_open_s = self.data_s.data.index.get_loc(day.strftime('%Y-%m-%d') + ' 09:30:00')
         self.open = self.data_s.data.values[self.day_open_s][0]
-        self.data_s.data.iloc[:, 0:4] /= self.open
-        self.data_m.data.iloc[:, 0:4] /= self.open
+        if normalise:
+            self.data_s.data.iloc[:, 0:4] /= self.open
+            self.data_m.data.iloc[:, 0:4] /= self.open
         self.data_s_values = self.data_s.data.values
         self.data_m_values = self.data_m.data.values
         pass
 
 class Dataset(object):
-    def __init__(self, symbol, end_date, num_days, hist_conf=(240, 240, 60), time_active=(4.0, 16.0)):
+    def __init__(self, symbol, end_date, num_days, hist_conf=(240, 240, 60), time_active=(4.0, 16.0), normalise=True):
         self.error = False
         self.symbol = symbol
         self.day_index = 0
@@ -44,7 +45,7 @@ class Dataset(object):
         if self.data_d.shape[0] == self.hist_days + num_days + 1:
             self.data_d_values = self.data_d.values
             for day_index in range(num_days):
-                self.day_data.append(Dataset_day(self.data_d.iloc[day_index+self.hist_days+1].name, time_active, self.symbol))
+                self.day_data.append(Dataset_day(self.data_d.iloc[day_index+self.hist_days+1].name, time_active, self.symbol, normalise))
         else:
             self.error = True
 
@@ -73,20 +74,31 @@ class Dataset(object):
     def increment_day_index(self):
         self.day_index = self.day_index + 1
 
-    def select_day(self, dayDate=None, dayIndex=None):
+    def select_day(self, day_date=None, day_index=None):
         error = False
-        if dayDate is None and self.day_index < self.hist_days:
+        if day_date is None and self.day_index < self.hist_days:
             self.day = self.day_data[self.day_index].day
-        elif dayIndex is not None:
-            self.day_index = dayIndex
+        elif day_index is not None:
+            self.day_index = day_index
             self.day = self.day_data[self.day_index].day
         else:
-            self.day_index = self.days.get_loc(dayDate)
+            self.day_index = self.days.get_loc(day_date)
             self.day = self.day_data[self.day_index].day
         if self.day is None:
             error = True
         self.sec_index = 0
         return error
+
+    def get_day(self, day_index=None, resolution='secs', ohlvc_only=False):
+        if day_index is None:
+            day_index = self.day_index
+        if resolution == 'secs':
+            data = self.day_data[day_index].data_s
+        else:
+            data = self.day_data[day_index].data_m
+        if ohlvc_only is False:
+            data.data['zc'] = self.day_data[day_index].signal_values
+        return data
 
     def get_seconds_remain(self):
         return self.day_data[self.day_index].data_s.data.__len__() - self.sec_index

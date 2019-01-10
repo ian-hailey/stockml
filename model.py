@@ -16,30 +16,38 @@ from sklearn.model_selection import train_test_split
 # files
 symbol_name = None
 saved_model = None
+end_date = None
+num_days = 0
 batch_size = 2000
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"hp:s:b:",["saved_model="])
+    opts, args = getopt.getopt(sys.argv[1:],"he:d:s:b:",["batchsize=","enddate=","days=","savedmodel="])
 except getopt.GetoptError:
-    print('model.py -p<weights>')
+    print('model.py -p<weights> -s<symbol> -e<end date> -c<number of days> -b<batch size>')
     sys.exit(2)
 for opt, arg in opts:
     if opt == '-h':
-        print("model.py -s<symbol> -p<weights>")
+        print('model.py -p<weights> -s<symbol> -e<end date> -c<number of days> -b<batch size>')
         sys.exit()
     elif opt == '-s':
         symbol_name = arg
-    elif opt == '-p':
-        saved_model = arg
     elif opt == '-b':
         batch_size = int(arg)
+    elif opt == '-e':
+        end_date = pd.to_datetime(arg)
+    elif opt == '-d':
+        num_days = int(arg)
 
-if saved_model != None:
-    print("Prediction Mode: for {} model {} batch_size={}".format(symbol_name, saved_model, batch_size))
-    train = False
+if end_date is not None and symbol_name is not None and num_days is not 0:
+    if saved_model != None:
+        print("Prediction Mode: for {} model {} batch_size={}".format(symbol_name, saved_model, batch_size))
+        train = False
+    else:
+        print("Training Mode for {} batch_size={}".format(symbol_name, batch_size))
+        train = True
 else:
-    print("Training Mode for {} batch_size={}".format(symbol_name, batch_size))
-    train = True
+    print("Error: command line args")
+    sys.exit(2)
 
 # Setup the dataset generator params
 hist_days=240
@@ -54,8 +62,8 @@ dba = db.Db(host='192.168.88.1')
 symbol = symbols.Symbol(dba, symbol_name)
 
 # Create dataset instance
-data = Dataset(symbol=symbol, end_date=pd.to_datetime('2018-12-31'), num_days=2, hist_conf=(hist_days, hist_mins, hist_secs))
-data.select_day(dayIndex=0)
+data = Dataset(symbol=symbol, end_date=pd.to_datetime('2018-12-31'), num_days=num_days, hist_conf=(hist_days, hist_mins, hist_secs))
+data.select_day(day_index=0)
 day_range = data.get_date_range()
 day_size = data.get_day_size()
 feature_planes = data.get_feature_size()
