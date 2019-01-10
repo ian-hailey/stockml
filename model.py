@@ -21,7 +21,7 @@ num_days = 0
 batch_size = 2000
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"he:d:s:b:",["batchsize=","enddate=","days=","savedmodel="])
+    opts, args = getopt.getopt(sys.argv[1:],"hb:e:d:s:p:",["batchsize=","enddate=","days=","symbol=","savedmodel="])
 except getopt.GetoptError:
     print('model.py -p<weights> -s<symbol> -e<end date> -c<number of days> -b<batch size>')
     sys.exit(2)
@@ -37,6 +37,8 @@ for opt, arg in opts:
         end_date = pd.to_datetime(arg)
     elif opt == '-d':
         num_days = int(arg)
+    elif opt == '-p':
+        saved_model = arg
 
 if end_date is not None and symbol_name is not None and num_days is not 0:
     if saved_model != None:
