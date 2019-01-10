@@ -163,6 +163,12 @@ def signal_plot(day, close, ma5, buysell, preds, openIndex):
     fig.savefig(filename)
     plt.close()
 
+def log_print(log_str, log_file=None):
+    if log_file is None:
+        print(log_str)
+    else:
+        log_file.write(log_str + '\n')
+
 def signal_day(df_day_s, day, stop=10, resolution='M'):
     dates_pre = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=9.5), freq='S')
     df_pre = df_day_s.daterange(dates_pre)
@@ -192,8 +198,9 @@ def signal_day(df_day_s, day, stop=10, resolution='M'):
         print("{} pre_close={} pre_vol={}".format(day.strftime('%Y-%m-%d'), df_pre_close, df_pre_vol))
         signal_plot(day, df_open.data['Close'].values, df_open.data['ma5'].values, df_open.data['buysell'].values, df_open.data['preds'].values, openIndex)
 
-def signal_gains(df_day, day, stop=10, openThreshold=0.5, closeThreshold=0.0):
-    print("Day {} ".format(day.strftime('%Y-%m-%d')))
+def signal_gains(df_day, day, stop=10, openThreshold=0.5, closeThreshold=0.0, log_file=None):
+    logstr = "Day {} ".format(day.strftime('%Y-%m-%d'))
+    log_print(logstr, log_file)
     dates_open_s = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='S')
     df_open_s = df_day.daterange(dates_open_s, ohlcvOnly=False)
     spIn = 0
@@ -214,18 +221,21 @@ def signal_gains(df_day, day, stop=10, openThreshold=0.5, closeThreshold=0.0):
                 gain = (spOut / spIn) - 1.0
                 if predIn > 0 and predOut <= closeThreshold:
                     totalGain = totalGain + gain
-                    print("  Long  Trade In {} SP={:.2f} - Out {} SP={:.2f} Gain={:.2f}%".format(timeIn.strftime('%H:%M:%S'), spIn,
+                    logstr = "  Long  Trade In {} SP={:.2f} - Out {} SP={:.2f} Gain={:.2f}%".format(timeIn.strftime('%H:%M:%S'), spIn,
                                                                                         timeOut.strftime('%H:%M:%S'), spOut,
-                                                                                        gain*100))
+                                                                                        gain*100)
+                    log_print(logstr, log_file)
                     spIn = 0
                 elif predIn < 0 and predOut >= closeThreshold:
                     totalGain = totalGain - gain
-                    print("  Short Trade In {} SP={:.2f} - Out {} SP={:.2f} Gain={:.2f}%".format(timeIn.strftime('%H:%M:%S'), spIn,
+                    logstr = "  Short Trade In {} SP={:.2f} - Out {} SP={:.2f} Gain={:.2f}%".format(timeIn.strftime('%H:%M:%S'), spIn,
                                                                                                 timeOut.strftime('%H:%M:%S'), spOut,
-                                                                                                -gain * 100))
+                                                                                                -gain * 100)
+                    log_print(logstr, log_file)
                     spIn = 0
     if totalGain != 0:
-        print("  Gain={:.2f}%".format(totalGain * 100))
+        logstr = "  Gain={:.2f}%".format(totalGain * 100)
+        log_print(logstr, log_file)
     return totalGain
 
 print("Using:", matplotlib.get_backend())
@@ -267,6 +277,7 @@ else:
 print("Pediction File " + preds_file)
 preds = pd.read_csv(preds_file, header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
 
+gains_file = open('gains_' + data.get_id() + '.txt', "w")
 totalGain = 0
 dayGains = []
 for day_index in range(day_size):
@@ -274,20 +285,20 @@ for day_index in range(day_size):
     df_day = data.get_day(day_index=day_index)
     df_day.data['pred'] = preds[day_date]
     df_day.data['pred'] = df_day.data['pred'].fillna(0)
-    gain = signal_gains(df_day, data.day_data[day_index].day, 16)
+    gain = signal_gains(df_day, data.day_data[day_index].day, 16, log_file=gains_file)
     dayGains.append(gain)
     totalGain = totalGain + gain
-print("Total Gain={:.2f}%".format(totalGain * 100))
+log_print("Total Gain={:.2f}%".format(totalGain * 100), gains_file)
+gains_file.close()
 xs = np.arange(0, len(dayGains))
 plt.bar(xs, dayGains)
 plt.xlabel('day')
 plt.ylabel('gains')
-plt.savefig('gainbars.png')
+plt.savefig('gainbars_' + data.get_id())
 plt.cla()
 plt.hist(dayGains)
 plt.xlabel('gains')
 plt.ylabel('days')
-plt.savefig('gainhist.png')
-
+plt.savefig('gainhist_' + data.get_id())
 
 pass
