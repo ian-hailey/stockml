@@ -10,6 +10,7 @@ import getopt
 import os
 from datasets import Dataset
 from data_generator import data_generator
+from keras.optimizers import adam
 from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping, ModelCheckpoint, TensorBoard
 from sklearn.model_selection import train_test_split
 
@@ -81,14 +82,15 @@ for day in range(day_size):
     datetime_index[id_index:id_index + secs.__len__(), 0] = day
     datetime_index[id_index:id_index + secs.__len__(), 1] = secs
     id_index = id_index + secs.__len__()
-datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.50, shuffle=False)
+datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.80, shuffle=False)
 
 # build the resnet model
 model = tresnet.TResnetBuilder.build_tresnet_18([(feature_planes, hist_days),
                                                  (feature_planes, hist_mins),
                                                  (feature_planes, hist_secs)], external_size, 1)
+optimiser = adam(lr = 0.0005)
 model.compile(loss='mean_squared_error',
-              optimizer='adam',
+              optimizer=optimiser,
               metrics=['mse'])
 
 if train:
@@ -118,7 +120,7 @@ if train:
                         validation_steps=len(datetime_index_validate) // batch_size,
     #                    use_multiprocessing=True,
     #                    workers=6,
-                        epochs=10, verbose=1, max_q_size=10,
+                        epochs=20, verbose=1, max_q_size=10,
                         callbacks = [lr_reducer, early_stopper, csv_logger, checkpoint, tensorboard])
     print(history)
     pass
