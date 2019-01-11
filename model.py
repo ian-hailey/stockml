@@ -81,7 +81,7 @@ for day in range(day_size):
     datetime_index[id_index:id_index + secs.__len__(), 0] = day
     datetime_index[id_index:id_index + secs.__len__(), 1] = secs
     id_index = id_index + secs.__len__()
-datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20, shuffle=False)
+datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.50, shuffle=False)
 
 # build the resnet model
 model = tresnet.TResnetBuilder.build_tresnet_18([(feature_planes, hist_days),
@@ -98,7 +98,7 @@ if train:
     # fit callbacks
     lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1), cooldown=0, patience=5, min_lr=0.5e-6)
     early_stopper = EarlyStopping(min_delta=0.001, patience=10)
-    csv_logger = CSVLogger('tresnet18_wdc.csv')
+    csv_logger = CSVLogger('trestnet18_' + data.get_id() + '.csv')
     # tensorboard callback
     tensorboard = TensorBoard(log_dir='./graph', histogram_freq=0,
                               write_graph=True, write_images=True)
