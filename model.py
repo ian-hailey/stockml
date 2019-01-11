@@ -82,13 +82,13 @@ for day in range(day_size):
     datetime_index[id_index:id_index + secs.__len__(), 0] = day
     datetime_index[id_index:id_index + secs.__len__(), 1] = secs
     id_index = id_index + secs.__len__()
-datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.80, shuffle=False)
+datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20, shuffle=False)
 
 # build the resnet model
 model = tresnet.TResnetBuilder.build_tresnet_18([(feature_planes, hist_days),
                                                  (feature_planes, hist_mins),
                                                  (feature_planes, hist_secs)], external_size, 1)
-optimiser = adam(lr = 0.0005)
+optimiser = adam(lr = 0.001)
 model.compile(loss='mean_squared_error',
               optimizer=optimiser,
               metrics=['mse'])
@@ -99,7 +99,7 @@ if train:
     validation_generator = data_generator(datetime_index_validate, data, batch_size=batch_size)
     # fit callbacks
     lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1), cooldown=0, patience=5, min_lr=0.5e-6)
-    early_stopper = EarlyStopping(min_delta=0.001, patience=10)
+    early_stopper = EarlyStopping(min_delta=0.001, patience=1)
     csv_logger = CSVLogger('trestnet18_' + data.get_id() + '.csv')
     # tensorboard callback
     tensorboard = TensorBoard(log_dir='./graph', histogram_freq=0,
@@ -110,7 +110,7 @@ if train:
         os.makedirs(subfolder)
 
     # checkpoint
-    filepath=subfolder + "/tresnet18-{epoch:02d}-{val_loss:.2f}.hdf5"
+    filepath=subfolder + "/tresnet18-{epoch:02d}-{val_loss:.4f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=False, mode='min')
 
     # train model on dataset
