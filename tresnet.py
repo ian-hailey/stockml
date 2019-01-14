@@ -20,6 +20,7 @@ from keras.layers.normalization import BatchNormalization
 from keras.regularizers import l2
 from keras import backend as K
 from keras.utils.vis_utils import plot_model
+from contextlib import redirect_stdout
 
 
 def _bn_relu(input):
@@ -274,7 +275,10 @@ class TResnetBuilder(object):
 
 
         model = Model(inputs=main_inputs, outputs=main_output)
-        plot_model(model, to_file='T-ResNet.png', show_shapes=True)
+        plot_model(model, to_file='T_ResNet.png', show_shapes=True)
+        with open('T_ResNet_Summary.txt', 'w') as f:
+            with redirect_stdout(f):
+                model.summary()
         return model
 
     @staticmethod

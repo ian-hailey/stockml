@@ -27,10 +27,13 @@ symbol_name = None
 saved_model = None
 end_date = None
 num_days = 0
-batch_size = 2000
+batch_size = 512
+pre_time = pd.to_datetime('04:00:00')
+start_time = pd.to_datetime('09:30:00')
+end_time = pd.to_datetime('16:00:00')
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"hb:e:d:s:p:",["batchsize=","enddate=","days=","symbol=","savedmodel="])
+    opts, args = getopt.getopt(sys.argv[1:],"hb:c:d:e:o:s:p:",["batchsize=","enddate=","days=","symbol=","savedmodel="])
 except getopt.GetoptError:
     print('model.py -p<weights> -s<symbol> -e<end date> -c<number of days> -b<batch size>')
     sys.exit(2)
@@ -48,6 +51,10 @@ for opt, arg in opts:
         num_days = int(arg)
     elif opt == '-p':
         saved_model = arg
+    elif opt == '-o':
+        start_time = pd.to_datetime(arg)
+    elif opt == '-c':
+        end_time = pd.to_datetime(arg)
 
 if end_date is not None and symbol_name is not None and num_days is not 0:
     if saved_model != None:
@@ -64,9 +71,6 @@ else:
 hist_days=240
 hist_mins=240
 hist_secs=60
-pre_time = pd.to_datetime('04:00:00')
-start_time = pd.to_datetime('09:30:00')
-end_time = pd.to_datetime('16:00:00')
 
 # Connect to DB
 dba = db.Db(host='192.168.88.1')
@@ -80,7 +84,7 @@ feature_planes = data.get_feature_size()
 external_size = data.get_external_size()
 
 print(day_range)
-print("daysize={} daysecs={}".format(day_size, data.get_seconds_remain()))
+print("daysize={} daysecs={} day={}-{}".format(day_size, data.get_seconds_remain(), start_time.strftime('%H:%M'), end_time.strftime('%H:%M')))
 
 day_secs = int((end_time-start_time).total_seconds())+1
 datetime_index = np.empty((day_size*day_secs, 2), dtype=int)
