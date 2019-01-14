@@ -8,11 +8,19 @@ import numpy as np
 import sys
 import getopt
 import os
+import tensorflow as tf
 from datasets import Dataset
 from data_generator import data_generator
 from keras.optimizers import adam
 from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping, ModelCheckpoint, TensorBoard
+from keras.backend.tensorflow_backend import set_session
 from sklearn.model_selection import train_test_split
+
+def set_GPU_opts():
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
+    set_session(sess)
 
 # files
 symbol_name = None
@@ -82,7 +90,10 @@ for day in range(day_size):
     datetime_index[id_index:id_index + secs.__len__(), 0] = day
     datetime_index[id_index:id_index + secs.__len__(), 1] = secs
     id_index = id_index + secs.__len__()
-datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20, shuffle=False)
+datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.10, shuffle=False)
+
+# configure the GPU
+set_GPU_opts()
 
 # build the resnet model
 model = tresnet.TResnetBuilder.build_tresnet_18([(feature_planes, hist_days),
@@ -99,7 +110,7 @@ if train:
     validation_generator = data_generator(datetime_index_validate, data, batch_size=batch_size)
     # fit callbacks
     lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1), cooldown=0, patience=5, min_lr=0.5e-6)
-    early_stopper = EarlyStopping(min_delta=0.001, patience=1)
+    early_stopper = EarlyStopping(min_delta=0.001, patience=3)
     csv_logger = CSVLogger('trestnet18_' + data.get_id() + '.csv')
     # tensorboard callback
     tensorboard = TensorBoard(log_dir='./graph', histogram_freq=0,
