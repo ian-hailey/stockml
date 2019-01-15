@@ -46,11 +46,13 @@ class Signals(object):
             dates_open_m = pd.date_range(day + pd.DateOffset(hours=4.0), day + pd.DateOffset(hours=stop), freq='60S')
             df_open_m = df_day_m.daterange(dates_open_m, ohlcvOnly=False)
             open = df_open_s.data['Open'][day.strftime('%Y-%m-%d') + ' 09:30:00']
-            df_open_m.data['Close'] = df_open_m.data['Close'] / open
-            df_open_m.data['ma5'] = df_open_m.data['ma5'] / open
+            df_open_m.data.iloc[:, 0:4] /= open
+            df_open_m.data.iloc[:, 5:7] /= open
             df_open_m.compute_gradient(source='ma5')
             zero_crossings = np.where(np.diff(np.sign(df_open_m.data['ma5grad'].values)))[0]
             if resolution is 'S':
+                df_open_s.data.iloc[:, 0:4] /= open
+                df_open_s.data.iloc[:, 5:7] /= open
                 df_open = df_open_s
                 zero_crossings = zero_crossings * 60
             else:
@@ -87,5 +89,8 @@ class Signals(object):
                 dates_day_s = pd.date_range(days[i] + pd.DateOffset(hours=4), days[i] + pd.DateOffset(hours=stop), freq='S')
                 df_day_s = df.daterange(dates_day_s)
                 results = self.generate_zc(df_day_s, days[i], stop, 'S')
-                self.signal = pd.concat([self.signal, results])
+                if days.size > 1:
+                    self.signal = pd.concat([self.signal, results])
+                else:
+                    self.signal = results
         return self.signal

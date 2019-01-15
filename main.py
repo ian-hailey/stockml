@@ -198,7 +198,7 @@ def signal_day(df_day_s, day, stop=10, resolution='M'):
         print("{} pre_close={} pre_vol={}".format(day.strftime('%Y-%m-%d'), df_pre_close, df_pre_vol))
         signal_plot(day, df_open.data['Close'].values, df_open.data['ma5'].values, df_open.data['buysell'].values, df_open.data['preds'].values, openIndex)
 
-def signal_gains(df_day, day, stop=10, openThreshold=0.5, closeThreshold=0.0, log_file=None):
+def signal_gains(df_day, day, stop=10, openThreshold=0.02, closeThreshold=0.0, log_file=None):
     logstr = "Day {} ".format(day.strftime('%Y-%m-%d'))
     log_print(logstr, log_file)
     dates_open_s = pd.date_range(day + pd.DateOffset(hours=9.5), day + pd.DateOffset(hours=stop), freq='S')
@@ -246,7 +246,7 @@ symbol = None
 sql_host = "192.168.88.1"
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:],"hp:s:e:d:",["preds=","symbol=", "enddate=", "days="])
+    opts, args = getopt.getopt(sys.argv[1:],"hc:o:p:s:e:d:",["preds=","symbol=", "enddate=", "days="])
 except getopt.GetoptError:
     print('model.py -p<weights> -s<symbol> -e<end date> -c<number of days>')
     sys.exit(2)
@@ -262,6 +262,10 @@ for opt, arg in opts:
         num_days = int(arg)
     elif opt == '-p':
         preds_file = arg
+    elif opt == '-o':
+        start_time = pd.to_datetime(arg)
+    elif opt == '-c':
+        end_time = pd.to_datetime(arg)
 
 if end_date is not None and symbol is not None and num_days is not 0:
     dba = db.Db(host=sql_host)

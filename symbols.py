@@ -47,18 +47,23 @@ class Symbol(object):
         zc_signal = signal.zc_from_df(df, np.array([day]), stop=16, thread_count=1)
         return zc_signal
 
-    def generate_signals(self, datetime=None, thread_count=2):
+    def generate_signals(self, datetime=None, recalc=False, thread_count=1):
         days = pd.date_range(self.info['start'].date(), self.info['end'].date(), freq='1D')
         days = days.normalize()
         with Pool(processes=thread_count) as pool:
             for day in days:
                 if day.weekday() < 5:
-                    zc_signal = self.db.get_symbol_signals(self.symbol, [day + pd.DateOffset(hours=9),
-                                                               day + pd.DateOffset(hours=9, minutes=1)])
-                    if zc_signal.size == 0:
+                    if recalc is False:
+                        zc_signal = self.db.get_symbol_signals(self.symbol, [day + pd.DateOffset(hours=9),
+                                                                   day + pd.DateOffset(hours=9, minutes=1)])
+                    if (recalc is True) or (zc_signal.size != 0):
                         df = self.db.get_symbol_ohlcv(self.symbol, [day, day + pd.DateOffset(hours=24)])
                         if df.size != 0:
-                            pool.apply_async(self.generate_signals_day, args=(day, df), callback=self.signal_callback)
+                            if thread_count > 1:
+                                pool.apply_async(self.generate_signals_day, args=(day, df), callback=self.signal_callback)
+                            else:
+                                results = self.generate_signals_day(day, df)
+                                self.db.insert_signals(results, self.symbol)
             pool.close()
             pool.join()
         pass
