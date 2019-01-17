@@ -6,7 +6,7 @@ import time
 import mpu.ml as ml
 
 class Dataset_day(object):
-    def __init__(self, day, time_active, symbol, normalise):
+    def __init__(self, day, time_active, symbol, data_d, normalise):
         self.day = day
         self.date_month = int(day.strftime('%m'))
         self.date_day = int(day.strftime('%d'))
@@ -24,8 +24,14 @@ class Dataset_day(object):
         self.day_open_s = self.data_s.data.index.get_loc(day.strftime('%Y-%m-%d') + ' 09:30:00')
         self.open = self.data_s.data.values[self.day_open_s][0]
         if normalise:
+            self.data_d = data_d / self.open
+            self.data_d -= 1.0
             self.data_s.data.iloc[:, 0:4] /= self.open
             self.data_m.data.iloc[:, 0:4] /= self.open
+            self.data_s.data.iloc[:, 0:4] -= 1.0
+            self.data_m.data.iloc[:, 0:4] -= 1.0
+        else:
+            self.data_d = data_d
         self.data_s_values = self.data_s.data.values
         self.data_m_values = self.data_m.data.values
         pass
@@ -45,7 +51,8 @@ class Dataset(object):
         if self.data_d.shape[0] == self.hist_days + num_days + 1:
             self.data_d_values = self.data_d.values
             for day_index in range(num_days):
-                self.day_data.append(Dataset_day(self.data_d.iloc[day_index+self.hist_days+1].name, time_active, self.symbol, normalise))
+                data_d = self.data_d_values[day_index:day_index + self.hist_days, :]
+                self.day_data.append(Dataset_day(self.data_d.iloc[day_index+self.hist_days+1].name, time_active, self.symbol, data_d, normalise))
         else:
             self.error = True
 
@@ -125,7 +132,7 @@ class Dataset(object):
             y_state = None
         minute_index = int(sec_index / 60)
         # d - last 240 days
-        x_state.append(self.data_d_values[day_index:day_index+self.hist_days, :] / self.day_data[day_index].open)
+        x_state.append(self.day_data[day_index].data_d)
         # m - last 240 minutes
         x_state.append(self.day_data[day_index].data_m_values[minute_index - self.hist_mins:minute_index, :])
         # s - last 60 seconds

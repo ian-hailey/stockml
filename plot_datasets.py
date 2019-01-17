@@ -7,14 +7,11 @@ import time
 import numpy as np
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
-from datasets import dataset
+from datasets import Dataset
 from sklearn.model_selection import train_test_split
 import cProfile as profile
-from data_generator import data_generator
-
-test1day = False
-testall = True
-doplots = False
+import db
+import symbols
 
 pr = profile.Profile()
 pr.disable()
@@ -85,100 +82,51 @@ def plot_day_2d(data):
     plt.autoscale(tight=True)
 
 def save_plots(data):
-    fig = plt.figure(frameon=False, figsize=(8, 4), dpi=100)
+    fig = plt.figure(frameon=False, figsize=(8, 4), dpi=200)
     canvas_width, canvas_height = fig.canvas.get_width_height()
     ax = fig.add_subplot(111)
     ax.set_xlim(0, 540)
 
-    for m in range(3600):
-        x_state, y_state = data.get_next_second()
-        ax.set_xlim(0, x_state.shape[0])
-        plt.plot(x_state[:,1])
-        plt.plot(x_state[:,2])
-        plt.plot(x_state[:,3])
+    for m in range(int((6.5*3600)/60)):
+        x_state, y_state = data.get_second(0, m*60)
+        ax.set_xlim(0, data.hist_days + data.hist_mins + data.hist_secs)
+        x = np.empty((data.hist_days + data.hist_mins + data.hist_secs, data.feature_size))
+        x[0:data.hist_days,] = x_state[0]
+        x[data.hist_days:data.hist_days+data.hist_mins,] = x_state[1]
+        x[data.hist_days+data.hist_mins:data.hist_days+data.hist_mins+data.hist_secs,] = x_state[2]
+        plt.plot(x[:,1])
+        plt.plot(x[:,2])
+        plt.plot(x[:,3])
 #        plot_ohlcv(ax, state)
         plt.axvline(x=240, ls='--', color='grey')
         plt.axvline(x=480, ls='--', color='grey')
-        plt.figtext(0.1, 0, "Y={}".format(y_state))
+        plt.figtext(0.1, 0, "Y={:.3f}".format(y_state))
         fig.tight_layout()
         plt.autoscale(tight=True)
         filename = "data/wdc_n_{}_{}.jpg".format(data.day.strftime('%Y-%m-%d'), m)
         fig.savefig(filename)
-        plt.cla()
+        plt.clf()
 
 print("Using:", matplotlib.get_backend())
 
-# load OHLCV
-df = ohlcv.ohlcv_csv("../wdcdata/wdc_ohlcv_1_year_2016.csv")
-
-# resample data to include all seconds
-df = df.resample(period='1s')
-
-# load buysell data
-buysell = pd.read_csv("../wdcdata/wdc_ohlcv_1_year_2016.csv.buysell", header=0, index_col=0, parse_dates=True, infer_datetime_format=True)
-
-# merge the two
-df.data = df.data.join(buysell)
-
-print("loaded data types:\n" + str(df.data.dtypes))
-print(df.data.index)
-print(df.data.dtypes)
-print(df.data)
-
-data = dataset(df)
-print(data.get_date_range())
-error = data.select_day(dayDate='2017-04-26')
-#error = data.select_day(dayDate='2018-04-25')
+end_date = '2018-12-31'
+num_days = 1
+symbol = 'WDC'
+sql_host = "192.168.88.1"
+dba = db.Db(host=sql_host)
+symbol = symbols.Symbol(dba, 'WDC', autocreate=True)
+data = Dataset(symbol=symbol, end_date=pd.to_datetime(end_date), num_days=num_days, normalise=True)
+data.select_day(day_index=0)
+day_range = data.get_date_range()
+day_size = data.get_day_size()
 
 # filter out all the pre-post market
 pre_time = 4.0
 start_time = 9.5
 end_time = 16.0
-day_range = data.get_date_range()
-buysell_range = buysell.between_time(start_time='09:30', end_time='16:00')
-buysell_range = buysell_range[str(day_range[0].date()):str(day_range[1].date())]
-buysell_day = buysell_range.resample('1d', fill_method=None).sum()
-datetime_index = np.empty((len(buysell_day)*(int((end_time-start_time)*3600)+1), 2), dtype=int)
-id_index = 0
-for day in range(len(buysell_day)):
-    if buysell_day.values[day][0] != 0.0:
-        for sec in range(int((end_time-start_time) * 3600)+1):
-            datetime_index[id_index] = (day, int((start_time-pre_time)*3600)+sec)
-            id_index = id_index + 1
-datetime_index = np.resize(datetime_index, (id_index, 2))
-datetime_index_train, datetime_index_validate = train_test_split(datetime_index, stratify=None, test_size=0.20)
 
-if doplots is True:
-    start_time = time.time()
-    save_plots(data)
-    print("--- %s seconds ---" % (time.time() - start_time))
-
-if testall is True:
-    training_generator = data_generator(datetime_index, data, batch_size=9000)
-
-    pr.enable()
-    start_time = time.time()
-    for m in range(training_generator.__len__()):
-        X, y = training_generator.__getitem__(m)
-    print("--- %s seconds ---" % (time.time() - start_time))
-    pr.disable()
-    pr.dump_stats('profile.pstat')
-
-if test1day is True:
-    pr.enable()
-    start_time = time.time()
-    for m in range(23400):
-        x_state, y_state = data.get_next_second()
-        if x_state is not None:
-            x_state3d = x_state.reshape(9, 60, 8)
-    #        print("x_state3d={} y_state={}".format(x_state3d.shape, y_state))
-        else:
-            print("x_state is None")
-    pr.disable()
-    print("--- %s seconds ---" % (time.time() - start_time))
-    pr.dump_stats('profile.pstat')
-
-#    data.plot_day_2d()
-#    state3d = state.reshape(6, 60, 5)
+start_time = time.time()
+save_plots(data)
+print("--- %s seconds ---" % (time.time() - start_time))
 
 pass

@@ -25,7 +25,7 @@ def plot_signal_lines(ax, signals, line_width):
 def plot_day(df_day_s, day, stop=10, signals=None, plotMA5s=False):
     # create date time index for the pre-market
     dates_pre = pd.date_range(day + pd.DateOffset(hours=4), day + pd.DateOffset(hours=9.5), freq='S')
-    df_pre = df.daterange(dates_pre)
+    df_pre = df_day_s.daterange(dates_pre)
     df_pre_close = df_pre.data['Close'].iloc[-1]
     df_pre_vol = df_pre.data['Volume'].sum()
     if df_pre_vol:
