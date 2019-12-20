@@ -6,7 +6,7 @@ from matplotlib.dates import DateFormatter
 
 import ohlcv
 
-df_day_m = ohlcv.Ohlcv_csv("../mu1day18.csv")
+df_day_m = ohlcv.Ohlcv_csv("mu1day18.csv")
 df_day_m.data = df_day_m.data.sort_index()
 df_day_m.compute_rsi()
 df_day_m.compute_stoch()
