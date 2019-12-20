@@ -11,7 +11,7 @@ class Ohlcv(object):
     def __init__(self, data):
         self.data = data
 
-    def plot_candlestick(self, ax, width=0.2, colorup='green', colordown='red', alpha=1.0):
+    def plot_candlestick(self, ax, width=0.2, colorup='green', colordown='red', alpha=1.0, relativeOpen=True):
 
         wickWidth = max(0.5, width / 5)
         open = self.data['Open'][0]
@@ -23,10 +23,16 @@ class Ohlcv(object):
 
         for row in self.data.itertuples():
             t = date2num(row[0])
-            row_open = row[1] / open
-            row_high = row[2] / open
-            row_low = row[3] / open
-            row_close = row[4] / open
+            if relativeOpen:
+                row_open = row[1] / open
+                row_high = row[2] / open
+                row_low = row[3] / open
+                row_close = row[4] / open
+            else:
+                row_open = row[1]
+                row_high = row[2]
+                row_low = row[3]
+                row_close = row[4]
 
             if row_close >= row_open:
                 color = colorup
